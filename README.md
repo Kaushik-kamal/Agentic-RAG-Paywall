@@ -2,11 +2,13 @@
 
 # Agentic RAG Paywall
 
-**A knowledge API that autonomous agents pay for — one answer at a time.**
+**An Agent Discovery Network — where AI agents find, evaluate, pay for and consume
+services they have never seen before.**
 
-No account. No card. No subscription. An agent calls the endpoint, reads the price
-off an HTTP `402`, settles a micropayment on Stellar, and gets back an answer that
-cites its sources — in about five seconds.
+No endpoint is configured anywhere. An agent arrives with a question, reads a live
+marketplace of AI services, ranks them on capability, reputation, price and latency,
+settles an HTTP `402` micropayment on Stellar with whichever one wins, and returns a
+cited answer — in about three seconds.
 
 [![CI](https://github.com/Kaushik-kamal/Agentic-RAG-Paywall/actions/workflows/ci.yml/badge.svg)](https://github.com/Kaushik-kamal/Agentic-RAG-Paywall/actions/workflows/ci.yml)
 ![Python 3.12](https://img.shields.io/badge/python-3.12-3776AB?logo=python&logoColor=white)
@@ -20,20 +22,53 @@ cites its sources — in about five seconds.
 
 ## The problem
 
-Every way of charging for an API assumes a human is buying.
+Today an AI agent can only call APIs someone wired into it in advance. It cannot
+go looking for a capability it lacks, compare what is on offer, or transact with a
+service it has never met. Every integration is a human decision made months earlier.
 
-API keys need someone to sign up. Subscriptions need a billing relationship that
-predates the first request. Cards charge $0.30 plus 2.9% and settle in days. None
-of that works when the buyer is a research agent that discovered your endpoint
-thirty seconds ago and needs exactly one answer.
+Two things are missing, and this repository builds both.
 
-`402 Payment Required` sat unused in the HTTP spec for thirty years. It turns out
-to be the right primitive: **the server quotes the price in the response, the
-client pays, the client retries.** On Stellar the fee is ~0.00001 XLM and the
-ledger closes in five seconds, so a $0.001 purchase is economically real.
+**A way to discover.** Services need to publish what they can do, what they charge,
+how fast they are, and how well they have performed — in a registry an agent can
+read and rank at request time.
 
-This repository is a complete, working implementation — and a RAG pipeline good
-enough that the answers are worth paying for.
+**A way to pay.** Discovery is worthless if settlement needs a signup form. `402
+Payment Required` sat unused in the HTTP spec for thirty years; it turns out to be
+exactly the right primitive. The server quotes the price in the response, the client
+pays, the client retries. On Stellar the fee is ~0.00001 XLM and the ledger closes
+in five seconds, so a $0.001 purchase is economically real.
+
+Put them together and an agent can do what a person does: find someone who can help,
+decide whether they are worth it, pay them, and use the result.
+
+```
+Agent (knows nothing)
+  ↓  understands intent
+  ↓  searches the registry            11 providers listed
+  ↓  filters on declared capability   2 can actually answer
+  ↓  ranks on trust · price · latency under a stated objective
+  ↓  explains the choice              and what it gave up
+  ↓  settles on Stellar               0.03 XLM, 3 credits
+  ↓  invokes the winner               over that provider's own knowledge scope
+  ↓  returns a cited answer           81% confidence
+  ↓  writes the outcome to reputation influencing the next decision
+```
+
+## Is the marketplace real?
+
+Yes, in every way that matters to the demonstration — and the README says exactly
+where the seams are rather than letting a judge discover them.
+
+**Real:** eleven providers with **disjoint knowledge scopes**, independent prices
+(0.005–0.035 XLM), independent latency profiles, independent retrieval
+configuration, and reputations computed only from transactions that actually
+happened. Route a contract question to the clinical provider and it genuinely
+answers *"not in my sources"* — which is precisely why routing correctly is a real
+problem rather than a scripted animation.
+
+**Shared:** they run on one deployment and settle into one treasury, attributed
+per provider. Nothing about the protocol assumes that — `POST /marketplace/providers`
+registers a third-party service that is rankable from its first request.
 
 ---
 
@@ -61,6 +96,17 @@ enough that the answers are worth paying for.
                                                       │  └───────────┘  │
                                                       └─────────────────┘
 ```
+
+### The discovery layer
+
+| | |
+|---|---|
+| **Open registry** | Providers publish capabilities, keywords, price, latency, model and knowledge scope. `POST /marketplace/providers` lists a new one; it is ranked from its first request with no code change. |
+| **Capability as a ceiling** | The router *multiplies* by capability rather than adding it, so a cheap generalist can never outbid the domain expert. Price, speed and trust compete only within a capability tier. This is the single most important line in the ranker — without it, automated routing is untrustworthy. |
+| **Stated objective** | `balanced`, `quality`, `cheapest` or `fastest` re-weight the commercial factors. The objective is shown, the weights are shown, and changing it visibly changes the winner. |
+| **Explainability** | Every decision reports why the winner won, what the runner-up was, what was given up by not choosing it, and **why each rejected provider was rejected** — "outmatched: 42% intent match against 87% for the leader". |
+| **Earned reputation** | Trust blends reliability, answer quality, latency against the advertised figure, and experience — each Bayesian-smoothed toward a prior, so one lucky call does not buy an AAA. Nothing is pre-seeded; a judge watches reputations form. |
+| **Auditable history** | The reputation chart is replayed cumulatively from the event ledger, so it can never disagree with the live score. |
 
 ### The paywall
 
@@ -103,13 +149,13 @@ That is the atomicity claim, proven rather than asserted.
 
 > Replace these placeholders with real captures before submitting.
 
-| Console — streaming answer with live citations | Corpus atlas — a query landing among its answers |
+| Discovery — the agent choosing a provider it has never seen | Marketplace — eleven services publishing their terms |
 |---|---|
-| ![Console](docs/screenshots/console.png) | ![Atlas](docs/screenshots/atlas.png) |
+| ![Discovery](docs/screenshots/discover.png) | ![Marketplace](docs/screenshots/marketplace.png) |
 
-| Agent swarm — twelve agents paying at once | Analytics |
+| One click — a fleet transacting across the network | Corpus atlas — a query landing among its answers |
 |---|---|
-| ![Swarm](docs/screenshots/swarm.png) | ![Dashboard](docs/screenshots/dashboard.png) |
+| ![Network demo](docs/screenshots/network-demo.png) | ![Atlas](docs/screenshots/atlas.png) |
 
 ---
 
@@ -137,9 +183,10 @@ copy ..\.env.example .env      # Windows
 # cp ../.env.example .env      # macOS / Linux
 # → set GEMINI_API_KEY in backend/.env
 
-python scripts/setup_stellar.py   # provisions + funds a testnet treasury
-python scripts/list_models.py     # confirm your key's available models
-python scripts/seed_demo.py       # index the bundled corpus
+python scripts/setup_stellar.py     # provisions + funds a testnet treasury
+python scripts/list_models.py       # confirm your key's available models
+python scripts/seed_demo.py         # index the core corpus
+python scripts/seed_marketplace.py  # index 10 domains, list 11 providers
 
 uvicorn app.main:app --reload --port 8000
 ```
@@ -193,6 +240,10 @@ Agentic-RAG-Paywall/
 │   │   │   ├── chunking.py         Heading-aware, sentence-boundary packing
 │   │   │   ├── embeddings.py       Gemini embeddings, batched + cached
 │   │   │   ├── vector_store.py     ChromaDB, cosine, per-document deletes
+│   │   │   ├── registry.py         Open provider registry + event ledger
+│   │   │   ├── reputation.py       Bayesian trust scoring and history replay
+│   │   │   ├── router_agent.py     Intent → filter → rank → explain
+│   │   │   ├── marketplace.py      Discover → pay → invoke → score
 │   │   │   ├── retrieval.py        Dense + BM25 → RRF → dedupe → trace
 │   │   │   ├── answer_cache.py     Embedding-matched cache; repeats cost 0
 │   │   │   ├── atlas.py            PCA projection of the embedding space
@@ -214,6 +265,8 @@ Agentic-RAG-Paywall/
     └── src/
         ├── app/
         │   ├── page.tsx            Landing
+        │   ├── discover/           Routing agent + one-click network demo
+        │   ├── marketplace/        Provider cards, leaderboard, detail pages
         │   ├── console/            Streaming chat + citations + retrieval
         │   ├── atlas/              Embedding-space map, live query overlay
         │   ├── library/            Upload and manage documents
@@ -260,6 +313,12 @@ Full interactive docs at `/docs`. The essentials:
 
 | Method | Endpoint | Auth | Description |
 |--------|----------|------|-------------|
+| `GET`  | `/api/v1/marketplace/providers` | — | Enumerate every service on the network |
+| `POST` | `/api/v1/marketplace/providers` | Admin key | **List a new service** — open registry |
+| `POST` | `/api/v1/marketplace/discover` | — | Rank the network against a request, free |
+| `POST` | `/api/v1/marketplace/route` | Bearer | **Autonomous end-to-end routing** (SSE) |
+| `POST` | `/api/v1/marketplace/compare` | Bearer | Send one request to several providers |
+| `GET`  | `/api/v1/marketplace/stats` | — | Live marketplace metrics and leaderboard |
 | `POST` | `/api/v1/rag/query` | Bearer · 1 credit | Ask a question, get a cited answer |
 | `POST` | `/api/v1/rag/stream` | Bearer · 1 credit | Same, as Server-Sent Events |
 | `POST` | `/api/v1/rag/search` | — | Semantic search, retrieval only, free |
@@ -359,7 +418,7 @@ set it to the URL a *browser* can reach.
 
 ```bash
 cd backend
-pytest                  # 73 tests, no network or API keys required
+pytest                  # 94 tests, no network or API keys required
 ruff check app scripts tests
 ```
 
@@ -377,10 +436,22 @@ confidence scoring, the SSE event sequence, upload validation, path traversal,
 semantic-cache hit/miss and invalidation, PCA determinism and basis stability,
 and the production-hardening validators.
 
+The marketplace tests pin down the properties the demo claims: that a domain
+expert beats a 50×-cheaper generalist, that the `cheapest` objective still refuses
+an incapable provider, that reputation cannot reach 100% on one success, that
+failures pull it back down, and that the replayed history always agrees with the
+live score.
+
 ---
 
 ## Roadmap
 
+- **Genuinely independent providers** — separate deployments, separate treasuries,
+  settlement split on-chain rather than attributed in one ledger
+- **Provider-signed listings** so a registry entry cannot be forged, and staking so
+  a bad actor has something to lose
+- **Negotiation** — an agent proposing a price and a provider accepting, declining
+  or counter-offering, instead of take-it-or-leave-it listings
 - **Mainnet settlement** with a hardware-backed treasury key and a withdrawal flow
 - **Postgres + pgvector** behind the existing repository interface, for multi-node
 - **Cross-encoder reranking** on the fused candidate set for another recall bump

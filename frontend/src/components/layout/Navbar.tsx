@@ -8,10 +8,11 @@ import {
   Coins,
   Command,
   Compass,
-  Library,
   Menu,
   MessagesSquare,
   Moon,
+  Network,
+  Store,
   Sun,
   Waypoints,
   X,
@@ -24,9 +25,10 @@ import { useTheme } from "@/components/providers/ThemeProvider";
 import { cn, formatCount } from "@/lib/utils";
 
 const LINKS = [
+  { href: "/discover", label: "Discover", icon: Network },
+  { href: "/marketplace", label: "Marketplace", icon: Store },
   { href: "/console", label: "Console", icon: MessagesSquare },
   { href: "/atlas", label: "Atlas", icon: Compass },
-  { href: "/library", label: "Library", icon: Library },
   { href: "/protocol", label: "Protocol", icon: Waypoints },
   { href: "/dashboard", label: "Analytics", icon: BarChart3 },
 ] as const;

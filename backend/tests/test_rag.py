@@ -207,7 +207,7 @@ class TestQueryEndpoint:
     ):
         from app.core.errors import ServiceUnavailableError
 
-        def explode(system: str, user: str) -> str:
+        def explode(system: str, user: str, **_: object) -> str:
             raise ServiceUnavailableError("Model is down")
 
         monkeypatch.setattr(generation, "complete", explode)

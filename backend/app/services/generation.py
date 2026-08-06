@@ -168,7 +168,13 @@ def build_prompt(
     return system, "\n\n".join(parts)
 
 
-def _get_llm(streaming: bool = False):
+def _get_llm(
+    streaming: bool = False,
+    *,
+    model: str | None = None,
+    temperature: float | None = None,
+):
+    """Build a client. Marketplace providers override model and temperature."""
     if not settings.gemini_enabled:
         raise ServiceUnavailableError(
             "GEMINI_API_KEY is not configured. Add it to backend/.env to enable "
@@ -178,21 +184,30 @@ def _get_llm(streaming: bool = False):
     from langchain_google_genai import ChatGoogleGenerativeAI
 
     return ChatGoogleGenerativeAI(
-        model=settings.gemini_model,
+        model=model or settings.gemini_model,
         google_api_key=settings.gemini_api_key,
-        temperature=settings.gemini_temperature,
+        temperature=settings.gemini_temperature if temperature is None else temperature,
         max_output_tokens=settings.gemini_max_output_tokens,
         disable_streaming=not streaming,
     )
 
 
-def stream_completion(system: str, user: str) -> Iterator[str]:
+def stream_completion(
+    system: str,
+    user: str,
+    *,
+    model: str | None = None,
+    temperature: float | None = None,
+) -> Iterator[str]:
     """Yield raw text deltas from Gemini."""
     from langchain_core.messages import HumanMessage, SystemMessage
 
     messages = [SystemMessage(content=system), HumanMessage(content=user)]
     try:
-        for part in _get_llm(streaming=True).stream(messages):
+        stream = _get_llm(
+            streaming=True, model=model, temperature=temperature
+        ).stream(messages)
+        for part in stream:
             text = part.content
             if isinstance(text, list):  # multimodal parts
                 text = "".join(p for p in text if isinstance(p, str))
@@ -207,12 +222,18 @@ def stream_completion(system: str, user: str) -> Iterator[str]:
         ) from exc
 
 
-def complete(system: str, user: str) -> str:
+def complete(
+    system: str,
+    user: str,
+    *,
+    model: str | None = None,
+    temperature: float | None = None,
+) -> str:
     from langchain_core.messages import HumanMessage, SystemMessage
 
     messages = [SystemMessage(content=system), HumanMessage(content=user)]
     try:
-        response = _get_llm().invoke(messages)
+        response = _get_llm(model=model, temperature=temperature).invoke(messages)
     except ServiceUnavailableError:
         raise
     except Exception as exc:

@@ -138,6 +138,77 @@ CREATE TABLE IF NOT EXISTS query_log (
 );
 CREATE INDEX IF NOT EXISTS idx_query_log_created ON query_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_query_log_agent   ON query_log(agent_id, created_at DESC);
+
+-- ── Agent Discovery Network ─────────────────────────────────────────────────
+-- Providers are independently priced, independently scored services. In this
+-- deployment they share infrastructure but own disjoint knowledge scopes, so
+-- routing to the wrong one produces a visibly worse answer.
+
+CREATE TABLE IF NOT EXISTS providers (
+    provider_id       TEXT PRIMARY KEY,
+    slug              TEXT NOT NULL UNIQUE,
+    name              TEXT NOT NULL,
+    tagline           TEXT NOT NULL,
+    description       TEXT NOT NULL,
+    category          TEXT NOT NULL,
+    endpoint          TEXT NOT NULL,
+    capabilities      TEXT NOT NULL,   -- JSON array
+    keywords          TEXT NOT NULL,   -- JSON array, drives intent matching
+    scope_documents   TEXT NOT NULL,   -- JSON array of document_id
+    model             TEXT NOT NULL,
+    price_xlm         REAL NOT NULL,
+    credits_per_call  INTEGER NOT NULL DEFAULT 1,
+    target_latency_ms INTEGER NOT NULL,
+    top_k             INTEGER NOT NULL DEFAULT 6,
+    temperature       REAL NOT NULL DEFAULT 0.15,
+    accent            TEXT NOT NULL DEFAULT 'accent',
+    status            TEXT NOT NULL DEFAULT 'online',
+    registered_by     TEXT,
+    created_at        TEXT NOT NULL,
+    -- Running counters. Kept on the row so the marketplace list is one query.
+    total_requests    INTEGER NOT NULL DEFAULT 0,
+    successful        INTEGER NOT NULL DEFAULT 0,
+    failed            INTEGER NOT NULL DEFAULT 0,
+    latency_sum_ms    INTEGER NOT NULL DEFAULT 0,
+    revenue_xlm       REAL    NOT NULL DEFAULT 0,
+    confidence_sum    REAL    NOT NULL DEFAULT 0,
+    confidence_count  INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_providers_category ON providers(category);
+
+CREATE TABLE IF NOT EXISTS provider_events (
+    event_id     INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id  TEXT NOT NULL,
+    agent_id     TEXT NOT NULL,
+    query        TEXT NOT NULL,
+    status       TEXT NOT NULL,          -- success | failed | refused
+    latency_ms   INTEGER,
+    cost_xlm     REAL NOT NULL DEFAULT 0,
+    confidence   REAL,
+    cited_chunks INTEGER,
+    created_at   TEXT NOT NULL,
+    FOREIGN KEY (provider_id) REFERENCES providers(provider_id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_provider_events_provider
+    ON provider_events(provider_id, event_id DESC);
+CREATE INDEX IF NOT EXISTS idx_provider_events_created
+    ON provider_events(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS routing_decisions (
+    decision_id  TEXT PRIMARY KEY,
+    agent_id     TEXT NOT NULL,
+    query        TEXT NOT NULL,
+    objective    TEXT NOT NULL,
+    considered   INTEGER NOT NULL,
+    shortlisted  INTEGER NOT NULL,
+    chosen_id    TEXT,
+    runner_up_id TEXT,
+    rationale    TEXT,
+    scoreboard   TEXT,                   -- JSON of every candidate's scores
+    decided_in_ms INTEGER,
+    created_at   TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_routing_created ON routing_decisions(created_at DESC);
 """
 
 

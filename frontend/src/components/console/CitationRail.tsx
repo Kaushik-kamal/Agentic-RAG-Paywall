@@ -19,6 +19,17 @@ export function CitationRail({
   const used = citations.filter((citation) => citation.used);
   const unused = citations.filter((citation) => !citation.used);
 
+  /** A document's H1 usually repeats its title — don't print it twice. */
+  const sectionPath = (citation: Citation): string =>
+    citation.section
+      .split(" › ")
+      .filter(
+        (crumb, index) =>
+          crumb.trim() &&
+          !(index === 0 && crumb.trim().toLowerCase() === citation.document_title.trim().toLowerCase()),
+      )
+      .join(" › ");
+
   return (
     <div className="space-y-2">
       <p className="text-eyebrow">
@@ -59,10 +70,10 @@ export function CitationRail({
                     {citation.document_title}
                   </p>
                   <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[0.6875rem] text-[var(--text-muted)]">
-                    {citation.section ? (
+                    {sectionPath(citation) ? (
                       <span className="inline-flex min-w-0 items-center gap-1">
                         <Hash size={9} className="shrink-0" />
-                        <span className="truncate">{citation.section}</span>
+                        <span className="truncate">{sectionPath(citation)}</span>
                       </span>
                     ) : null}
                     {citation.page ? (

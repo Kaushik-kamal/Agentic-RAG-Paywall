@@ -14,7 +14,9 @@ import {
   Loader2,
   MessagesSquare,
   Moon,
+  Network,
   Search,
+  Store,
   Sun,
   Waypoints,
 } from "lucide-react";
@@ -56,6 +58,22 @@ export function CommandPalette() {
 
   const navigationCommands = useMemo<Command[]>(
     () => [
+      {
+        id: "discover",
+        label: "Discover — route a request autonomously",
+        hint: "Let the agent find, evaluate and pay a provider",
+        icon: <Network size={15} />,
+        group: "Navigate",
+        run: () => router.push("/discover"),
+      },
+      {
+        id: "marketplace",
+        label: "Provider marketplace",
+        hint: "Every service on the discovery network",
+        icon: <Store size={15} />,
+        group: "Navigate",
+        run: () => router.push("/marketplace"),
+      },
       {
         id: "console",
         label: "Open the console",

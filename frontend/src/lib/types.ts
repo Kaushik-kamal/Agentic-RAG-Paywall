@@ -103,6 +103,204 @@ export interface AnswerMetrics {
   mean_score: number;
 }
 
+// ── Agent Discovery Network ──────────────────────────────────────────────────
+
+export type Objective = "balanced" | "cheapest" | "fastest" | "quality";
+
+export interface ProviderStats {
+  total_requests: number;
+  successful: number;
+  failed: number;
+  reliability: number | null;
+  avg_latency_ms: number | null;
+  revenue_xlm: number;
+  avg_confidence: number | null;
+}
+
+export interface Reputation {
+  trust: number;
+  grade: string;
+  components: {
+    reliability: number;
+    quality: number;
+    speed: number;
+    experience: number;
+  };
+  weights: Record<string, number>;
+  observations: number;
+  unproven: boolean;
+}
+
+export interface Provider {
+  provider_id: string;
+  slug: string;
+  name: string;
+  tagline: string;
+  description: string;
+  category: string;
+  endpoint: string;
+  capabilities: string[];
+  keywords: string[];
+  scope_documents: string[];
+  model: string;
+  price_xlm: number;
+  price_usd: number;
+  credits_per_call: number;
+  target_latency_ms: number;
+  top_k: number;
+  temperature: number;
+  accent: string;
+  status: "online" | "offline" | "degraded";
+  registered_by: string | null;
+  created_at: string;
+  stats: ProviderStats;
+  reputation: Reputation;
+}
+
+export interface ProviderDetail extends Provider {
+  reputation_history: { n: number; trust: number; reliability: number; at: string }[];
+  recent_events: {
+    event_id: number;
+    query: string;
+    status: string;
+    latency_ms: number | null;
+    cost_xlm: number;
+    confidence: number | null;
+    created_at: string;
+  }[];
+}
+
+export interface CandidateScores {
+  capability: number;
+  semantic: number;
+  keyword: number;
+  trust: number;
+  price: number;
+  latency: number;
+  total: number;
+}
+
+export interface RouteCandidate {
+  provider_id: string;
+  slug: string;
+  name: string;
+  tagline: string;
+  category: string;
+  accent: string;
+  price_xlm: number;
+  credits_per_call: number;
+  target_latency_ms: number;
+  status: string;
+  stats: ProviderStats;
+  reputation: Reputation;
+  scores: CandidateScores;
+  matched_keywords: string[];
+  eligible: boolean;
+  reason: string | null;
+}
+
+export interface RoutingDecision {
+  decision_id: string;
+  query: string;
+  objective: Objective;
+  objective_label: string;
+  weights: Record<string, number>;
+  considered: number;
+  shortlisted: number;
+  decided_in_ms: number;
+  chosen: RouteCandidate | null;
+  runner_up: RouteCandidate | null;
+  rationale: string;
+  tradeoffs: string[];
+  candidates: RouteCandidate[];
+}
+
+export interface LeaderboardEntry {
+  slug: string;
+  name: string;
+  accent: string;
+  value: number;
+}
+
+export interface NetworkStats {
+  providers_total: number;
+  providers_online: number;
+  categories: string[];
+  total_requests: number;
+  successful: number;
+  failed: number;
+  success_rate: number | null;
+  revenue_xlm: number;
+  avg_latency_ms: number | null;
+  avg_price_xlm: number;
+  cheapest_xlm: number;
+  dearest_xlm: number;
+  leaderboard: {
+    most_trusted: LeaderboardEntry | null;
+    most_used: LeaderboardEntry | null;
+    cheapest: LeaderboardEntry | null;
+    fastest: LeaderboardEntry | null;
+    highest_revenue: LeaderboardEntry | null;
+  };
+  activity: { hour: string; requests: number; revenue_xlm: number }[];
+  recent_events: {
+    event_id: number;
+    provider_name: string;
+    provider_slug: string;
+    provider_accent: string;
+    query: string;
+    status: string;
+    latency_ms: number | null;
+    cost_xlm: number;
+    confidence: number | null;
+    created_at: string;
+  }[];
+  recent_decisions: {
+    decision_id: string;
+    query: string;
+    objective: string;
+    considered: number;
+    shortlisted: number;
+    chosen_name: string | null;
+    chosen_slug: string | null;
+    chosen_accent: string | null;
+    rationale: string | null;
+    decided_in_ms: number;
+    created_at: string;
+  }[];
+}
+
+export interface ComparisonResult {
+  slug: string;
+  name: string;
+  accent: string;
+  category: string;
+  status: "answered" | "refused" | "failed";
+  answer?: string;
+  citations?: Citation[];
+  confidence?: Confidence;
+  latency_ms?: number;
+  price_xlm: number;
+  credits_charged?: number;
+  cited?: number;
+  retrieved?: number;
+  top_score?: number;
+  value_score?: number;
+  overall?: number;
+  error?: string;
+}
+
+export interface Comparison {
+  query: string;
+  results: ComparisonResult[];
+  ranked: string[];
+  winner: string | null;
+  router_would_choose: string | null;
+  router_rationale: string;
+  agreement: boolean;
+  elapsed_ms: number;
+}
+
 export interface CacheInfo {
   hit: boolean;
   matched_question: string;

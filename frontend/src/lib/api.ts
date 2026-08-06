@@ -12,14 +12,20 @@ import type {
   Atlas,
   AtlasProjection,
   Balance,
+  Comparison,
   Conversation,
   DocumentLibrary,
   Health,
   IngestResult,
+  NetworkStats,
+  Objective,
   PaymentChallenge,
   PaymentEntry,
   PlatformStats,
+  Provider,
+  ProviderDetail,
   QueryAnswer,
+  RoutingDecision,
   RuntimeConfig,
   SearchResult,
   StoredMessage,
@@ -190,6 +196,48 @@ export const projectIntoAtlas = (query: string, topK = 6) =>
     method: "POST",
     body: { query, top_k: topK },
   });
+
+// ── Agent Discovery Network ──────────────────────────────────────────────────
+
+export const listProviders = () =>
+  request<{ providers: Provider[]; total: number; categories: string[] }>(
+    "/marketplace/providers",
+  );
+
+export const getProvider = (slug: string) =>
+  request<ProviderDetail>(`/marketplace/providers/${encodeURIComponent(slug)}`);
+
+export const discoverProviders = (
+  query: string,
+  objective: Objective = "balanced",
+) =>
+  request<RoutingDecision>("/marketplace/discover", {
+    method: "POST",
+    body: { query, objective },
+  });
+
+export const getNetworkStats = () =>
+  request<NetworkStats>("/marketplace/stats");
+
+export const compareProviders = (
+  query: string,
+  agentId: string,
+  providers: string[],
+  token: string,
+) =>
+  request<Comparison>("/marketplace/compare", {
+    method: "POST",
+    body: { query, agent_id: agentId, providers },
+    token,
+  });
+
+export const getSpendingPower = (agentId: string) =>
+  request<{
+    agent_id: string;
+    credits: number;
+    affordable_providers: string[];
+    locked_out: string[];
+  }>(`/marketplace/balance/${encodeURIComponent(agentId)}`);
 
 // ── Conversations ────────────────────────────────────────────────────────────
 

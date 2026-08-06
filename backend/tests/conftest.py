@@ -104,6 +104,9 @@ def _isolate_tables() -> Iterator[None]:
     answer_cache.invalidate()
     conn = database.get_connection()
     for table in (
+        "routing_decisions",
+        "provider_events",
+        "providers",
         "credit_ledger",
         "payments",
         "challenges",
@@ -167,11 +170,14 @@ def fake_llm(monkeypatch: pytest.MonkeyPatch) -> None:
         "- How are replays prevented?\n"
         "- What does a ledger close mean?"
     )
-    monkeypatch.setattr(generation, "complete", lambda system, user: answer)
+    # Providers may override the model and temperature, so accept them.
+    monkeypatch.setattr(generation, "complete", lambda system, user, **_: answer)
     monkeypatch.setattr(
         generation,
         "stream_completion",
-        lambda system, user: iter([answer[i : i + 12] for i in range(0, len(answer), 12)]),
+        lambda system, user, **_: iter(
+            [answer[i : i + 12] for i in range(0, len(answer), 12)]
+        ),
     )
 
 

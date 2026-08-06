@@ -7,14 +7,16 @@ import {
   FileSearch,
   Gauge,
   Layers,
+  Network,
   Quote,
   RefreshCcw,
   ScanSearch,
+  Scale,
   ShieldCheck,
   Sparkles,
+  Store,
   Terminal,
   Timer,
-  Wallet,
 } from "lucide-react";
 
 import { LivePulse } from "@/components/landing/LivePulse";
@@ -24,6 +26,18 @@ import { Card, SectionHeader } from "@/components/ui/Card";
 import { CodeBlock } from "@/components/ui/CodeBlock";
 
 const CAPABILITIES = [
+  {
+    icon: Network,
+    title: "Discovery, not configuration",
+    body: "Providers publish capabilities, price, latency and payment terms to an open registry. The agent enumerates it at request time — nothing is hard-coded, and a service listed a minute ago is rankable immediately.",
+    accent: "var(--accent)",
+  },
+  {
+    icon: Scale,
+    title: "Capability sets the ceiling",
+    body: "Competence multiplies the score rather than adding to it, so a cheap generalist can never outbid the domain expert. Price and speed compete only among providers that can actually answer.",
+    accent: "var(--data)",
+  },
   {
     icon: Coins,
     title: "Priced in the response",
@@ -87,40 +101,42 @@ export default function LandingPage() {
           <div className="mx-auto max-w-3xl text-center">
             <Badge tone="accent" className="mb-6">
               <Sparkles size={11} />
-              HTTP 402 · Stellar · Gemini
+              Agent Discovery Network
             </Badge>
 
             <h1 className="text-display">
-              A knowledge API that{" "}
-              <span className="text-gradient">agents pay for</span>
+              AI agents that{" "}
+              <span className="text-gradient">find, judge and pay</span> for
+              services on their own
             </h1>
 
             <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-[var(--text-secondary)] md:text-lg">
-              No account. No card. No subscription. An autonomous agent calls the
-              endpoint, reads the price off a{" "}
+              No endpoint is configured anywhere. An agent arrives with a question,
+              reads a live marketplace of AI services, ranks them on capability,
+              reputation, price and latency, settles a{" "}
               <span className="mono rounded bg-[var(--surface-active)] px-1.5 py-0.5 text-[0.9em] text-[var(--value)]">
                 402
-              </span>
-              , settles a micropayment on Stellar, and gets back an answer that cites
-              its sources — in about five seconds.
+              </span>{" "}
+              micropayment on Stellar with whichever one wins, and comes back with a
+              cited answer — in about three seconds.
             </p>
 
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <ButtonLink
-                href="/console"
+                href="/discover"
                 variant="primary"
                 size="lg"
                 iconRight={<ArrowRight size={16} />}
               >
-                Open the console
+                Watch an agent discover
               </ButtonLink>
-              <ButtonLink href="/protocol" size="lg" icon={<Wallet size={15} />}>
-                Watch an agent pay
+              <ButtonLink href="/marketplace" size="lg" icon={<Store size={15} />}>
+                Browse the marketplace
               </ButtonLink>
             </div>
 
             <p className="mt-4 text-xs text-[var(--text-faint)]">
-              Three free credits on arrival — no wallet needed to try it.
+              Eleven live providers · three free credits on arrival · no wallet needed
             </p>
           </div>
 

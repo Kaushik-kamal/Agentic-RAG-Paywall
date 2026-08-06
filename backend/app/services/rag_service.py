@@ -208,12 +208,15 @@ class RAGService:
     # ── Generation ───────────────────────────────────────────────────────────
 
     def _prepare(
-        self, question: str, document_ids: list[str] | None
+        self,
+        question: str,
+        document_ids: list[str] | None,
+        top_k: int | None = None,
     ) -> tuple[retrieval.RetrievalResult, list[generation.Citation], str, str]:
         if vector_store.count() == 0:
             raise KnowledgeBaseEmptyError()
 
-        result = retrieval.retrieve(question, document_ids=document_ids)
+        result = retrieval.retrieve(question, top_k=top_k, document_ids=document_ids)
         if result.is_empty:
             raise KnowledgeBaseEmptyError(
                 "Nothing in the knowledge base is relevant to that question. "
@@ -229,12 +232,15 @@ class RAGService:
         *,
         history: list[dict[str, str]] | None = None,
         document_ids: list[str] | None = None,
+        top_k: int | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
     ) -> AnswerResult:
         started = time.perf_counter()
-        result, citations, system, _ = self._prepare(question, document_ids)
+        result, citations, system, _ = self._prepare(question, document_ids, top_k)
         _, user = generation.build_prompt(question, citations, history=history)
 
-        raw = generation.complete(system, user)
+        raw = generation.complete(system, user, model=model, temperature=temperature)
         answer, follow_ups = generation.split_answer(raw)
         generation.mark_used_citations(answer, citations)
 
@@ -274,12 +280,15 @@ class RAGService:
         *,
         history: list[dict[str, str]] | None = None,
         document_ids: list[str] | None = None,
+        top_k: int | None = None,
+        model: str | None = None,
+        temperature: float | None = None,
     ) -> Iterator[tuple[str, dict[str, Any]]]:
         """Yield ``(event, payload)`` pairs for Server-Sent Events."""
         started = time.perf_counter()
 
         yield "status", {"stage": "retrieving", "message": "Searching the knowledge base"}
-        result, citations, system, _ = self._prepare(question, document_ids)
+        result, citations, system, _ = self._prepare(question, document_ids, top_k)
         _, user = generation.build_prompt(question, citations, history=history)
 
         retrieval_ms = int((time.perf_counter() - started) * 1000)
@@ -299,7 +308,9 @@ class RAGService:
         pieces: list[str] = []
         first_token_ms: int | None = None
 
-        for delta in generation.stream_completion(system, user):
+        for delta in generation.stream_completion(
+            system, user, model=model, temperature=temperature
+        ):
             visible = splitter.push(delta)
             if visible:
                 if first_token_ms is None:
@@ -334,7 +345,7 @@ class RAGService:
                 "first_token_ms": first_token_ms,
                 "tokens_used": generation.estimate_tokens(system, user, answer),
                 "cost_xlm": settings.x402_price_xlm,
-                "model": settings.gemini_model,
+                "model": model or settings.gemini_model,
                 "metrics": {
                     "chunks_retrieved": len(citations),
                     "chunks_cited": sum(1 for c in citations if c.used),
