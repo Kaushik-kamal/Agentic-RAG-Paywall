@@ -17,14 +17,74 @@ from app.core.errors import AppError
 from app.core.logging import request_id_ctx
 from app.db import repository as repo
 from app.schemas import QueryRequest, QueryResponse, SearchRequest
+from app.services import atlas
 from app.services.rag_service import rag_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache, no-transform",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",  # disable nginx buffering
+    # GZipMiddleware skips responses that already declare an encoding.
+    # Compressing an event stream buffers it and destroys the live feel.
+    "Content-Encoding": "identity",
+}
+
+#: Characters per replayed frame — enough to feel alive without pretending the
+#: answer is being generated when it is not.
+_REPLAY_CHUNK = 90
+
+
 def _sse(event: str, payload: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
+
+
+async def _replay_cached(
+    cached: dict[str, Any],
+    agent_id: str,
+    conversation_id: str | None,
+    balance: int,
+) -> AsyncIterator[str]:
+    """Replay a cached answer over the same event sequence a live one uses.
+
+    The client should not need a second code path, and the ``cached`` flag on
+    the terminal event tells it plainly that no credit was charged.
+    """
+    yield _sse(
+        "start",
+        {
+            "agent_id": agent_id,
+            "conversation_id": conversation_id,
+            "credits_remaining": balance,
+            "cost_xlm": 0.0,
+            "model": cached.get("model"),
+            "cached": True,
+        },
+    )
+    yield _sse(
+        "status", {"stage": "cached", "message": "Served from the semantic cache"}
+    )
+    yield _sse(
+        "retrieval",
+        {
+            "citations": cached.get("citations", []),
+            "trace": cached.get("retrieval", {}),
+            "candidates": cached.get("candidates", []),
+            "retrieval_ms": 0,
+        },
+    )
+
+    answer = cached.get("answer", "")
+    for start in range(0, len(answer), _REPLAY_CHUNK):
+        yield _sse("token", {"text": answer[start : start + _REPLAY_CHUNK]})
+
+    if cached.get("follow_ups"):
+        yield _sse("follow_ups", {"questions": cached["follow_ups"]})
+
+    yield _sse("done", {**cached, "credits_remaining": balance})
 
 
 def _ensure_conversation(agent_id: str, request: QueryRequest) -> str | None:
@@ -56,6 +116,29 @@ async def query_knowledge_base(
         if conversation_id
         else []
     )
+
+    # A repeat question — however it is phrased — is served free. Checked
+    # before the debit so the caller is never charged for it.
+    cached = await run_in_threadpool(rag_service.lookup_cached_answer, body.query)
+    if cached is not None:
+        balance = await run_in_threadpool(repo.get_credits, agent_id)
+        await run_in_threadpool(
+            repo.log_query,
+            agent_id=agent_id,
+            question=body.query,
+            conversation_id=conversation_id,
+            answer_preview=cached["answer"][:280],
+            confidence=(cached.get("confidence") or {}).get("score"),
+            latency_ms=0,
+            tokens_used=0,
+            chunks_used=len(cached.get("citations", [])),
+            status="cached",
+        )
+        return QueryResponse(
+            **{**cached, "question": body.query},
+            credits_remaining=balance,
+            conversation_id=conversation_id,
+        )
 
     remaining = await run_in_threadpool(repo.consume_credit, agent_id)
     if remaining is None:  # lost a race against a concurrent query
@@ -142,6 +225,27 @@ async def stream_knowledge_base(
         if conversation_id
         else []
     )
+
+    cached = await run_in_threadpool(rag_service.lookup_cached_answer, body.query)
+    if cached is not None:
+        balance = await run_in_threadpool(repo.get_credits, agent_id)
+        await run_in_threadpool(
+            repo.log_query,
+            agent_id=agent_id,
+            question=body.query,
+            conversation_id=conversation_id,
+            answer_preview=cached["answer"][:280],
+            confidence=(cached.get("confidence") or {}).get("score"),
+            latency_ms=0,
+            tokens_used=0,
+            chunks_used=len(cached.get("citations", [])),
+            status="cached",
+        )
+        return StreamingResponse(
+            _replay_cached(cached, agent_id, conversation_id, balance),
+            media_type="text/event-stream",
+            headers=_SSE_HEADERS,
+        )
 
     remaining = await run_in_threadpool(repo.consume_credit, agent_id)
     if remaining is None:
@@ -238,16 +342,7 @@ async def stream_knowledge_base(
             request_id_ctx.reset(token)
 
     return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",  # disable nginx buffering
-            # GZipMiddleware skips responses that already declare an encoding.
-            # Compressing an event stream buffers it and destroys the live feel.
-            "Content-Encoding": "identity",
-        },
+        event_stream(), media_type="text/event-stream", headers=_SSE_HEADERS
     )
 
 
@@ -263,6 +358,27 @@ async def semantic_search(body: SearchRequest) -> dict[str, Any]:
         top_k=body.top_k,
         document_ids=body.document_ids,
     )
+
+
+@router.get(
+    "/atlas",
+    summary="2D map of the embedding space",
+    description=(
+        "Projects every indexed chunk onto its two principal components. PCA is "
+        "linear, so a query can later be placed in the same basis — which is what "
+        "makes the live overlay honest rather than decorative."
+    ),
+)
+async def corpus_atlas() -> dict[str, Any]:
+    return await run_in_threadpool(atlas.build_atlas)
+
+
+@router.post(
+    "/atlas/project",
+    summary="Place a query in the atlas — free, no LLM",
+)
+async def project_into_atlas(body: SearchRequest) -> dict[str, Any]:
+    return await run_in_threadpool(atlas.project_query, body.query, body.top_k)
 
 
 @router.get("/stats", summary="RAG pipeline configuration and index size")

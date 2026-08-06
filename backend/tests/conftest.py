@@ -43,7 +43,7 @@ from fastapi.testclient import TestClient
 from app.core.config import get_settings
 from app.db import database
 from app.main import app
-from app.services import generation, vector_store
+from app.services import answer_cache, generation, vector_store
 from app.services.vector_store import ScoredChunk
 
 get_settings.cache_clear()
@@ -99,7 +99,9 @@ def _database() -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def _isolate_tables() -> Iterator[None]:
     """Truncate between tests so one test's payments cannot leak into another."""
+    answer_cache.invalidate()
     yield
+    answer_cache.invalidate()
     conn = database.get_connection()
     for table in (
         "credit_ledger",

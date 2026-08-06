@@ -6,11 +6,12 @@
 
 import { API_BASE, ApiError } from "./api";
 import type {
+  AnswerMetrics,
+  CacheInfo,
   Citation,
   Confidence,
   RetrievalCandidate,
   RetrievalTrace,
-  AnswerMetrics,
 } from "./types";
 
 export interface StreamStart {
@@ -42,6 +43,8 @@ export interface StreamDone {
   model: string;
   metrics: AnswerMetrics;
   credits_remaining: number;
+  cached?: boolean;
+  cache?: CacheInfo | null;
 }
 
 export interface StreamHandlers {

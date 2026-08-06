@@ -21,6 +21,7 @@ import {
   Terminal,
 } from "lucide-react";
 
+import { SwarmSimulator } from "./SwarmSimulator";
 import { useSession } from "@/components/providers/SessionProvider";
 import { useToast } from "@/components/providers/ToastProvider";
 import { Badge, Chip, LiveDot } from "@/components/ui/Badge";
@@ -453,6 +454,8 @@ export function ProtocolWorkspace() {
           ) : null}
         </div>
       </div>
+
+      <SwarmSimulator />
 
       {/* ── Integration ──────────────────────────────────────────────────── */}
       <section id="integrate" className="mt-16 scroll-mt-24">

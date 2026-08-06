@@ -9,6 +9,8 @@
 import type {
   Analytics,
   ApiErrorBody,
+  Atlas,
+  AtlasProjection,
   Balance,
   Conversation,
   DocumentLibrary,
@@ -180,6 +182,14 @@ export const semanticSearch = (input: {
 
 export const getPipelineStats = () =>
   request<Record<string, unknown>>("/rag/stats");
+
+export const getAtlas = () => request<Atlas>("/rag/atlas");
+
+export const projectIntoAtlas = (query: string, topK = 6) =>
+  request<AtlasProjection>("/rag/atlas/project", {
+    method: "POST",
+    body: { query, top_k: topK },
+  });
 
 // ── Conversations ────────────────────────────────────────────────────────────
 

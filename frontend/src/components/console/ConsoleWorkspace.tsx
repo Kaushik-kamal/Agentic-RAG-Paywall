@@ -13,6 +13,7 @@ import {
   Radar,
   Square,
   Trash2,
+  Zap,
 } from "lucide-react";
 
 import { AnswerBody } from "./AnswerBody";
@@ -30,6 +31,7 @@ import { EmptyState, OfflineBanner, Spinner } from "@/components/ui/Feedback";
 import { ApiError, deleteConversation, getConversation, listConversations } from "@/lib/api";
 import { streamAnswer } from "@/lib/stream";
 import type {
+  CacheInfo,
   Citation,
   Confidence,
   Conversation,
@@ -56,6 +58,7 @@ interface Turn {
   costXlm?: number;
   model?: string;
   error?: string;
+  cache?: CacheInfo | null;
 }
 
 const STARTERS = [
@@ -201,6 +204,7 @@ export function ConsoleWorkspace() {
                 tokensUsed: payload.tokens_used,
                 costXlm: payload.cost_xlm,
                 model: payload.model,
+                cache: payload.cached ? payload.cache : null,
               });
               setCredits(payload.credits_remaining);
               loadConversations();
@@ -539,9 +543,21 @@ export function ConsoleWorkspace() {
                               <span>first token {formatDuration(turn.firstTokenMs)}</span>
                             ) : null}
                             <span>{turn.tokensUsed?.toLocaleString()} tokens</span>
-                            <span className="text-[var(--value)]">
-                              {turn.costXlm} XLM
-                            </span>
+                            {turn.cache ? (
+                              <span
+                                className="inline-flex items-center gap-1 text-[var(--positive)]"
+                                title={`Matched "${turn.cache.matched_question}" at ${Math.round(
+                                  turn.cache.similarity * 100,
+                                )}% similarity`}
+                              >
+                                <Zap size={10} />
+                                cached · 0 credits
+                              </span>
+                            ) : (
+                              <span className="text-[var(--value)]">
+                                {turn.costXlm} XLM
+                              </span>
+                            )}
                             <CopyButton value={turn.answer} label="Copy" />
                           </div>
                         ) : null}

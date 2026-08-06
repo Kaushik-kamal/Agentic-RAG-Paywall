@@ -81,6 +81,21 @@ enough that the answers are worth paying for.
 | **Grounded generation** | Numbered context, forced `[n]` markers on every factual sentence, and an explicit instruction to refuse when the context does not support an answer. |
 | **Auditable confidence** | Scored from retrieval similarity and citation coverage — *not* the model's self-assessment, which is poorly calibrated. Every input to the score is shown in the UI. |
 | **Streaming** | Server-Sent Events. The retrieval trace lands before the first word; follow-up questions arrive in the same stream at no extra latency. |
+| **Semantic cache** | A repeat question — *however it is phrased* — is served from cache in ~0.5 s and charged **zero credits**. Matching is by query embedding, so "how fast does Stellar settle" hits an entry stored for "what is the ledger close time". Keyed by corpus revision, so any upload invalidates it. |
+
+### Two things you can only see by looking
+
+**The corpus atlas** (`/atlas`) projects every chunk onto its two principal
+components and lets you drop a live query into the same space. Because PCA is
+*linear*, a new point can be placed in the existing basis — t-SNE and UMAP look
+tidier but cannot, which would make the overlay a lie. Type a question and watch
+it land among its answers, with lines drawn to exactly what retrieval selected.
+
+**The agent swarm** (`/protocol#swarm`) launches up to twelve agents that each run
+the whole x402 loop concurrently against the live API. It closes by reconciling
+the ledger against the server's own balances — *"72 credits across the swarm,
+expected 72. Exact — no credit was double-spent or lost under concurrency."*
+That is the atomicity claim, proven rather than asserted.
 
 ---
 
@@ -88,13 +103,13 @@ enough that the answers are worth paying for.
 
 > Replace these placeholders with real captures before submitting.
 
-| Console — streaming answer with live citations | x402 walkthrough |
+| Console — streaming answer with live citations | Corpus atlas — a query landing among its answers |
 |---|---|
-| ![Console](docs/screenshots/console.png) | ![Protocol](docs/screenshots/protocol.png) |
+| ![Console](docs/screenshots/console.png) | ![Atlas](docs/screenshots/atlas.png) |
 
-| Retrieval trace | Analytics |
+| Agent swarm — twelve agents paying at once | Analytics |
 |---|---|
-| ![Retrieval](docs/screenshots/retrieval.png) | ![Dashboard](docs/screenshots/dashboard.png) |
+| ![Swarm](docs/screenshots/swarm.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
 ---
 
@@ -179,6 +194,8 @@ Agentic-RAG-Paywall/
 │   │   │   ├── embeddings.py       Gemini embeddings, batched + cached
 │   │   │   ├── vector_store.py     ChromaDB, cosine, per-document deletes
 │   │   │   ├── retrieval.py        Dense + BM25 → RRF → dedupe → trace
+│   │   │   ├── answer_cache.py     Embedding-matched cache; repeats cost 0
+│   │   │   ├── atlas.py            PCA projection of the embedding space
 │   │   │   ├── generation.py       Prompting, citations, confidence
 │   │   │   ├── rag_service.py      Orchestration (ingest · search · answer)
 │   │   │   ├── stellar_service.py  Challenge · on-chain verify · credits
@@ -198,13 +215,16 @@ Agentic-RAG-Paywall/
         ├── app/
         │   ├── page.tsx            Landing
         │   ├── console/            Streaming chat + citations + retrieval
+        │   ├── atlas/              Embedding-space map, live query overlay
         │   ├── library/            Upload and manage documents
-        │   ├── protocol/           Live x402 walkthrough
+        │   ├── protocol/           x402 walkthrough + agent swarm
         │   ├── dashboard/          Real analytics
         │   └── api/documents/      BFF — holds the admin key server-side
         ├── components/
         │   ├── console/            AnswerBody · CitationRail · Confidence ·
         │   │                       RetrievalTrace · PaywallDialog
+        │   ├── atlas/              Embedding-space map with live query overlay
+        │   ├── protocol/           x402 walkthrough · SwarmSimulator
         │   ├── charts/             Dependency-free SVG charts
         │   ├── layout/             Navbar · Footer · ⌘K command palette
         │   ├── providers/          Session (x402 client) · Theme · Toast
@@ -243,6 +263,8 @@ Full interactive docs at `/docs`. The essentials:
 | `POST` | `/api/v1/rag/query` | Bearer · 1 credit | Ask a question, get a cited answer |
 | `POST` | `/api/v1/rag/stream` | Bearer · 1 credit | Same, as Server-Sent Events |
 | `POST` | `/api/v1/rag/search` | — | Semantic search, retrieval only, free |
+| `GET`  | `/api/v1/rag/atlas` | — | 2D PCA projection of the whole corpus |
+| `POST` | `/api/v1/rag/atlas/project` | — | Place a query in the atlas, free |
 | `POST` | `/api/v1/payments/challenge` | — | Get an x402 payment challenge |
 | `POST` | `/api/v1/payments/verify` | — | Redeem a transaction hash for credits |
 | `GET`  | `/api/v1/payments/balance/{agent_id}` | — | Remaining credits |
@@ -337,7 +359,7 @@ set it to the URL a *browser* can reach.
 
 ```bash
 cd backend
-pytest                  # 63 tests, no network or API keys required
+pytest                  # 73 tests, no network or API keys required
 ruff check app scripts tests
 ```
 
@@ -349,9 +371,10 @@ npm run build
 ```
 
 The backend suite stubs the vector store and the LLM, so it is hermetic and runs
-in ~5 seconds. It covers the paywall economics (replay, expiry, atomic debit,
+in seconds. It covers the paywall economics (replay, expiry, atomic debit,
 refund-on-failure), token forgery, chunking, retrieval fusion, citation parsing,
 confidence scoring, the SSE event sequence, upload validation, path traversal,
+semantic-cache hit/miss and invalidation, PCA determinism and basis stability,
 and the production-hardening validators.
 
 ---

@@ -7,6 +7,7 @@ vectors precisely when it is removed from the library.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 from dataclasses import dataclass
@@ -202,6 +203,34 @@ _corpus_cache: list[tuple[str, str, dict[str, Any]]] | None = None
 def _invalidate_corpus_cache() -> None:
     global _corpus_cache
     _corpus_cache = None
+
+
+def corpus_revision() -> str:
+    """Stable fingerprint of the indexed set — changes on any ingest or delete.
+
+    Cache entries are keyed by this so a document upload can never leave a
+    stale answer behind.
+    """
+    ids = sorted(chunk_id for chunk_id, _, _ in get_corpus())
+    return hashlib.sha256("|".join(ids).encode()).hexdigest()[:16]
+
+
+def get_embeddings() -> tuple[list[str], list[list[float]], list[dict[str, Any]]]:
+    """Every stored vector, for corpus-level analysis such as the atlas."""
+    if count() == 0:
+        return [], [], []
+
+    payload = get_collection().get(include=["embeddings", "metadatas", "documents"])
+    ids = list(payload.get("ids") or [])
+    raw_vectors = payload.get("embeddings")
+    vectors = [list(v) for v in raw_vectors] if raw_vectors is not None else []
+    metadatas = [dict(m or {}) for m in (payload.get("metadatas") or [])]
+    documents = list(payload.get("documents") or [])
+
+    for metadata, text in zip(metadatas, documents, strict=False):
+        metadata["_text"] = text or ""
+
+    return ids, vectors, metadatas
 
 
 def get_corpus() -> list[tuple[str, str, dict[str, Any]]]:

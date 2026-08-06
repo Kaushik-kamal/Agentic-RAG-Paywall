@@ -14,8 +14,9 @@ from app.core.config import settings
 from app.core.errors import KnowledgeBaseEmptyError, NotFoundError, ValidationError
 from app.core.security import new_id
 from app.db import repository as repo
-from app.services import generation, retrieval, vector_store
+from app.services import answer_cache, atlas, generation, retrieval, vector_store
 from app.services.chunking import chunk_document
+from app.services.embeddings import embed_query
 from app.services.loaders import load_document
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,7 @@ class AnswerResult:
             "cost_xlm": self.cost_xlm,
             "model": self.model,
             "metrics": self.metrics,
+            "cached": False,
         }
 
 
@@ -125,6 +127,8 @@ class RAGService:
             topics=topics,
         )
 
+        self._on_corpus_change()
+
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         logger.info(
             "Ingested %s: %d chunks in %d ms", filename, indexed, elapsed_ms
@@ -138,6 +142,13 @@ class RAGService:
             raise NotFoundError(f"Document '{document_id}' does not exist.")
         vector_store.delete_document(document_id)
         repo.delete_document(document_id)
+        self._on_corpus_change()
+
+    @staticmethod
+    def _on_corpus_change() -> None:
+        """Anything derived from the corpus is now stale."""
+        answer_cache.invalidate()
+        atlas.invalidate()
 
     # ── Retrieval-only search (no LLM, no credit) ────────────────────────────
 
@@ -164,6 +175,35 @@ class RAGService:
             "retrieval": result.trace,
             "latency_ms": int((time.perf_counter() - started) * 1000),
         }
+
+    # ── Semantic cache ───────────────────────────────────────────────────────
+
+    def lookup_cached_answer(self, question: str) -> dict[str, Any] | None:
+        """Check the cache *before* a credit is debited.
+
+        A repeat question — however it is phrased — is not billed twice.
+        """
+        if vector_store.count() == 0:
+            return None
+        try:
+            vector = embed_query(question)
+        except Exception:  # a cache miss must never fail the request
+            logger.warning("Cache lookup embedding failed", exc_info=True)
+            return None
+
+        hit = answer_cache.lookup(vector, vector_store.corpus_revision())
+        return hit.payload() if hit else None
+
+    def _remember_answer(self, question: str, payload: dict[str, Any]) -> None:
+        try:
+            answer_cache.store(
+                question,
+                embed_query(question),
+                payload,
+                vector_store.corpus_revision(),
+            )
+        except Exception:  # caching is best-effort
+            logger.debug("Failed to cache answer", exc_info=True)
 
     # ── Generation ───────────────────────────────────────────────────────────
 
@@ -206,7 +246,7 @@ class RAGService:
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
 
-        return AnswerResult(
+        result_payload = AnswerResult(
             question=question,
             answer=answer,
             citations=[c.to_dict() for c in citations],
@@ -225,6 +265,8 @@ class RAGService:
                 "mean_score": round(result.mean_score, 4),
             },
         )
+        self._remember_answer(question, result_payload.to_dict())
+        return result_payload
 
     def stream_answer(
         self,
@@ -281,9 +323,7 @@ class RAGService:
         )
         latency_ms = int((time.perf_counter() - started) * 1000)
 
-        yield (
-            "done",
-            {
+        done_payload: dict[str, Any] = {
                 "answer": answer,
                 "citations": [c.to_dict() for c in citations],
                 "sources": sorted({c.document_title for c in citations}),
@@ -301,8 +341,21 @@ class RAGService:
                     "top_score": round(result.top_score, 4),
                     "mean_score": round(result.mean_score, 4),
                 },
-            },
-        )
+                "cached": False,
+        }
+
+        if answer:
+            self._remember_answer(
+                question,
+                {
+                    **done_payload,
+                    "question": question,
+                    "retrieval": result.trace,
+                    "candidates": [c.to_dict() for c in result.candidates],
+                },
+            )
+
+        yield "done", done_payload
 
     # ── Stats ────────────────────────────────────────────────────────────────
 
@@ -321,6 +374,7 @@ class RAGService:
             "chunk_size": settings.chunk_size,
             "chunk_overlap": settings.chunk_overlap,
             "gemini_configured": settings.gemini_enabled,
+            "answer_cache": answer_cache.stats(),
         }
 
 

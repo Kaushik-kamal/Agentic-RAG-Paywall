@@ -103,6 +103,53 @@ export interface AnswerMetrics {
   mean_score: number;
 }
 
+export interface CacheInfo {
+  hit: boolean;
+  matched_question: string;
+  similarity: number;
+  age_seconds: number;
+  credits_charged: number;
+}
+
+export interface AtlasPoint {
+  chunk_id: string;
+  document_id: string;
+  document_title: string;
+  section: string;
+  page: number | null;
+  preview: string;
+  x: number;
+  y: number;
+}
+
+export interface Atlas {
+  available: boolean;
+  reason?: string;
+  points: AtlasPoint[];
+  documents: { document_id: string; title: string; chunks: number }[];
+  explained_variance: number[];
+  total_variance_explained?: number;
+  dimensions?: number;
+  method?: string;
+  revision?: string;
+}
+
+export interface AtlasProjection {
+  available: boolean;
+  query: string;
+  x: number;
+  y: number;
+  retrieved: {
+    chunk_id: string;
+    locator: string;
+    score: number;
+    preview: string;
+  }[];
+  considered: Record<string, number>;
+  trace: RetrievalTrace;
+  latency_ms: number;
+}
+
 export interface QueryAnswer {
   question: string;
   answer: string;
@@ -121,6 +168,8 @@ export interface QueryAnswer {
   metrics: AnswerMetrics;
   credits_remaining: number;
   conversation_id: string | null;
+  cached?: boolean;
+  cache?: CacheInfo | null;
 }
 
 export interface SearchMatch {

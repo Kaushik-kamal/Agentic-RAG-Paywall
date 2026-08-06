@@ -7,6 +7,7 @@ import {
   BarChart3,
   Coins,
   Command,
+  Compass,
   Library,
   Menu,
   MessagesSquare,
@@ -24,6 +25,7 @@ import { cn, formatCount } from "@/lib/utils";
 
 const LINKS = [
   { href: "/console", label: "Console", icon: MessagesSquare },
+  { href: "/atlas", label: "Atlas", icon: Compass },
   { href: "/library", label: "Library", icon: Library },
   { href: "/protocol", label: "Protocol", icon: Waypoints },
   { href: "/dashboard", label: "Analytics", icon: BarChart3 },

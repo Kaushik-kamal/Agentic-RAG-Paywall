@@ -59,6 +59,14 @@ class ConfidenceModel(Schema):
     reasons: list[str]
 
 
+class CacheInfo(Schema):
+    hit: bool
+    matched_question: str
+    similarity: float
+    age_seconds: int
+    credits_charged: int
+
+
 class QueryResponse(Schema):
     question: str
     answer: str
@@ -75,6 +83,9 @@ class QueryResponse(Schema):
     metrics: dict[str, Any]
     credits_remaining: int
     conversation_id: str | None = None
+    #: True when the answer came from the semantic cache — no credit charged.
+    cached: bool = False
+    cache: CacheInfo | None = None
 
 
 # ── Documents ─────────────────────────────────────────────────────────────────
