@@ -1,0 +1,16 @@
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+data/chroma/
+data/uploads/
+data/*.db
+data/*.db-shm
+data/*.db-wal
+.env
+.env.*
+tests/
+*.md

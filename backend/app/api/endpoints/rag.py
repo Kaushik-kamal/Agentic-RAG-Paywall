@@ -1,133 +1,270 @@
-"""RAG endpoints — wired to the full RAGService."""
-import os
-import shutil
+"""Knowledge API: paid answer generation (buffered + streaming) and free search."""
+
+from __future__ import annotations
+
+import json
 import logging
-from pathlib import Path
-from typing import Optional, List
+from collections.abc import AsyncIterator
+from typing import Any
 
-from fastapi import APIRouter, HTTPException, UploadFile, File, Header, Depends
-from pydantic import BaseModel
+from fastapi import APIRouter, Request
+from fastapi.responses import StreamingResponse
+from starlette.concurrency import iterate_in_threadpool, run_in_threadpool
 
+from app.api.deps import PaidAgent, QueryLimit
+from app.core.config import settings
+from app.core.errors import AppError
+from app.core.logging import request_id_ctx
+from app.db import repository as repo
+from app.schemas import QueryRequest, QueryResponse, SearchRequest
 from app.services.rag_service import rag_service
-from app.services.stellar_service import stellar_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-UPLOAD_DIR = Path("./data/uploads")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+def _sse(event: str, payload: dict[str, Any]) -> str:
+    return f"event: {event}\ndata: {json.dumps(payload, default=str)}\n\n"
 
 
-# ── Models ────────────────────────────────────────────────────────────────────
-
-class QueryRequest(BaseModel):
-    query: str
-    agent_id: str
-    payment_token: Optional[str] = None
-
-
-class QueryResponse(BaseModel):
-    answer: str
-    sources: List[str]
-    tokens_used: int
-    cost_xlm: float
-    latency_s: Optional[float] = None
+def _ensure_conversation(agent_id: str, request: QueryRequest) -> str | None:
+    if not request.remember:
+        return None
+    if request.conversation_id:
+        conversation = repo.get_conversation(request.conversation_id)
+        if conversation and conversation["agent_id"] == agent_id:
+            return request.conversation_id
+    return repo.create_conversation(agent_id, request.query)["conversation_id"]
 
 
-class IngestResponse(BaseModel):
-    filename: str
-    chunks_stored: int
-    status: str
+@router.post(
+    "/query",
+    response_model=QueryResponse,
+    summary="Ask the knowledge base (costs 1 credit)",
+    responses={
+        402: {"description": "Payment required — settle an x402 payment first"},
+        409: {"description": "Knowledge base is empty or has no relevant passage"},
+    },
+)
+async def query_knowledge_base(
+    body: QueryRequest, claims: PaidAgent, _limit: QueryLimit
+) -> QueryResponse:
+    agent_id = claims.agent_id
+    conversation_id = await run_in_threadpool(_ensure_conversation, agent_id, body)
+    history = (
+        await run_in_threadpool(repo.recent_turns, conversation_id)
+        if conversation_id
+        else []
+    )
 
+    remaining = await run_in_threadpool(repo.consume_credit, agent_id)
+    if remaining is None:  # lost a race against a concurrent query
+        from app.core.errors import InsufficientCreditsError
 
-# ── Auth helper ───────────────────────────────────────────────────────────────
+        raise InsufficientCreditsError()
 
-def _require_token(authorization: Optional[str] = Header(None)) -> str:
-    """Validate x402 access token from Authorization: Bearer <token> header."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=402,
-            detail="Payment required. POST /api/v1/payments/initiate first.",
-            headers={
-                "X-Payment-Address": stellar_service.public_key or "GCEX...",
-                "X-Payment-Amount": str(stellar_service.price_xlm),
-                "X-Payment-Asset": "XLM",
-                "X-Payment-Network": stellar_service.network,
+    try:
+        result = await run_in_threadpool(
+            rag_service.answer,
+            body.query,
+            history=history,
+            document_ids=body.document_ids,
+        )
+    except AppError:
+        await run_in_threadpool(repo.refund_credit, agent_id)
+        await run_in_threadpool(
+            repo.log_query,
+            agent_id=agent_id,
+            question=body.query,
+            conversation_id=conversation_id,
+            status="failed",
+        )
+        raise
+    except Exception:
+        await run_in_threadpool(repo.refund_credit, agent_id)
+        logger.exception("Unhandled RAG failure")
+        raise
+
+    payload = result.to_dict()
+    if conversation_id:
+        await run_in_threadpool(repo.add_message, conversation_id, "user", body.query)
+        await run_in_threadpool(
+            repo.add_message,
+            conversation_id,
+            "assistant",
+            result.answer,
+            citations=result.citations,
+            metrics={
+                "confidence": result.confidence,
+                "latency_ms": result.latency_ms,
+                "follow_ups": result.follow_ups,
+                "model": result.model,
             },
         )
-    token = authorization.removeprefix("Bearer ")
-    agent_id = stellar_service.validate_access_token(token)
-    if agent_id is None:
-        raise HTTPException(status_code=401, detail="Invalid or expired access token.")
-    return agent_id
+
+    await run_in_threadpool(
+        repo.log_query,
+        agent_id=agent_id,
+        question=body.query,
+        conversation_id=conversation_id,
+        answer_preview=result.answer[:280],
+        confidence=result.confidence["score"],
+        latency_ms=result.latency_ms,
+        tokens_used=result.tokens_used,
+        chunks_used=len(result.citations),
+    )
+
+    return QueryResponse(
+        **payload, credits_remaining=remaining, conversation_id=conversation_id
+    )
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
+@router.post(
+    "/stream",
+    summary="Ask the knowledge base with a streamed answer (costs 1 credit)",
+    response_class=StreamingResponse,
+    responses={200: {"content": {"text/event-stream": {}}}},
+)
+async def stream_knowledge_base(
+    body: QueryRequest, request: Request, claims: PaidAgent, _limit: QueryLimit
+) -> StreamingResponse:
+    """Server-Sent Events.
 
-@router.post("/query", response_model=QueryResponse)
-async def query_knowledge_base(
-    request: QueryRequest,
-    agent_id: str = Depends(_require_token),
-):
+    Event sequence: ``status`` → ``retrieval`` → ``token``* → ``follow_ups``
+    → ``done``. Any failure emits a terminal ``error`` event and refunds the
+    credit, so a dropped connection never costs the caller.
     """
-    Query the RAG knowledge base.
-    Requires a valid Stellar x402 access token in Authorization header.
+    agent_id = claims.agent_id
+    request_id = request_id_ctx.get()
+    conversation_id = await run_in_threadpool(_ensure_conversation, agent_id, body)
+    history = (
+        await run_in_threadpool(repo.recent_turns, conversation_id)
+        if conversation_id
+        else []
+    )
+
+    remaining = await run_in_threadpool(repo.consume_credit, agent_id)
+    if remaining is None:
+        from app.core.errors import InsufficientCreditsError
+
+        raise InsufficientCreditsError()
+
+    async def event_stream() -> AsyncIterator[str]:
+        token = request_id_ctx.set(request_id)
+        charged = True
+        answer = ""
+        final: dict[str, Any] = {}
+        try:
+            yield _sse(
+                "start",
+                {
+                    "agent_id": agent_id,
+                    "conversation_id": conversation_id,
+                    "credits_remaining": remaining,
+                    "cost_xlm": settings.x402_price_xlm,
+                    "model": settings.gemini_model,
+                },
+            )
+
+            generator = rag_service.stream_answer(
+                body.query, history=history, document_ids=body.document_ids
+            )
+            async for event, payload in iterate_in_threadpool(generator):
+                if await request.is_disconnected():
+                    logger.info("Client disconnected mid-stream; aborting generation")
+                    break
+                if event == "done":
+                    final = payload
+                    answer = payload.get("answer", "")
+                    payload = {**payload, "credits_remaining": remaining}
+                yield _sse(event, payload)
+
+        except AppError as exc:
+            charged = False
+            await run_in_threadpool(repo.refund_credit, agent_id)
+            yield _sse(
+                "error",
+                {
+                    "code": exc.code,
+                    "message": exc.message,
+                    "details": exc.details,
+                    "refunded": True,
+                },
+            )
+        except Exception:
+            charged = False
+            await run_in_threadpool(repo.refund_credit, agent_id)
+            logger.exception("Streaming RAG failure")
+            yield _sse(
+                "error",
+                {
+                    "code": "internal_error",
+                    "message": "Generation failed unexpectedly. Your credit was refunded.",
+                    "refunded": True,
+                },
+            )
+        finally:
+            if charged and answer:
+                if conversation_id:
+                    await run_in_threadpool(
+                        repo.add_message, conversation_id, "user", body.query
+                    )
+                    await run_in_threadpool(
+                        repo.add_message,
+                        conversation_id,
+                        "assistant",
+                        answer,
+                        citations=final.get("citations", []),
+                        metrics={
+                            "confidence": final.get("confidence"),
+                            "latency_ms": final.get("latency_ms"),
+                            "follow_ups": final.get("follow_ups", []),
+                            "model": final.get("model"),
+                        },
+                    )
+                await run_in_threadpool(
+                    repo.log_query,
+                    agent_id=agent_id,
+                    question=body.query,
+                    conversation_id=conversation_id,
+                    answer_preview=answer[:280],
+                    confidence=(final.get("confidence") or {}).get("score"),
+                    latency_ms=final.get("latency_ms"),
+                    tokens_used=final.get("tokens_used"),
+                    chunks_used=len(final.get("citations", [])),
+                )
+            elif charged:
+                await run_in_threadpool(repo.refund_credit, agent_id)
+            request_id_ctx.reset(token)
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # disable nginx buffering
+            # GZipMiddleware skips responses that already declare an encoding.
+            # Compressing an event stream buffers it and destroys the live feel.
+            "Content-Encoding": "identity",
+        },
+    )
+
+
+@router.post("/search", summary="Semantic search — retrieval only, no LLM, free")
+async def semantic_search(body: SearchRequest) -> dict[str, Any]:
+    """Inspect what the retriever finds without paying for generation.
+
+    Useful for tuning, and for agents that only need passages.
     """
-    if not request.query.strip():
-        raise HTTPException(status_code=422, detail="Query must not be empty.")
-    try:
-        result = await rag_service.query(request.query)
-        return QueryResponse(**result)
-    except Exception as e:
-        logger.exception("RAG query failed")
-        raise HTTPException(status_code=500, detail=f"RAG error: {str(e)}")
+    return await run_in_threadpool(
+        rag_service.search,
+        body.query,
+        top_k=body.top_k,
+        document_ids=body.document_ids,
+    )
 
 
-@router.post("/ingest", response_model=IngestResponse)
-async def ingest_document(file: UploadFile = File(...)):
-    """
-    Upload and ingest a document (PDF or .txt) into ChromaDB.
-    Admin endpoint — add your own auth here in production.
-    """
-    allowed = {".pdf", ".txt", ".md"}
-    suffix = Path(file.filename or "").suffix.lower()
-    if suffix not in allowed:
-        raise HTTPException(
-            status_code=422,
-            detail=f"Unsupported file type '{suffix}'. Allowed: {allowed}",
-        )
-
-    dest = UPLOAD_DIR / (file.filename or "upload")
-    try:
-        with dest.open("wb") as f:
-            shutil.copyfileobj(file.file, f)
-
-        chunks = await rag_service.ingest_documents(str(dest), source_name=file.filename)
-        return IngestResponse(
-            filename=file.filename or "",
-            chunks_stored=chunks,
-            status="success",
-        )
-    except Exception as e:
-        logger.exception("Ingestion failed")
-        raise HTTPException(status_code=500, detail=f"Ingestion error: {str(e)}")
-    finally:
-        file.file.close()
-
-
-@router.get("/collections")
-async def list_collections():
-    """List available knowledge base collections and doc count."""
-    stats = rag_service.get_stats()
-    return {
-        "collections": [stats["collection"]],
-        "total_documents": stats["total_documents"],
-        "total_queries": stats["total_queries"],
-        "model": stats["model"],
-    }
-
-
-@router.get("/stats")
-async def get_rag_stats():
-    """Return RAG pipeline stats."""
-    return rag_service.get_stats()
+@router.get("/stats", summary="RAG pipeline configuration and index size")
+async def rag_stats() -> dict[str, Any]:
+    return await run_in_threadpool(rag_service.stats)

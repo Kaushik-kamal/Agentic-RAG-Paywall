@@ -1,87 +1,102 @@
-"""
-Aggregated stats endpoint + agents endpoint wired to in-memory store.
-Production: replace _agents dict with a database.
-"""
+"""Agent registry."""
+
+from __future__ import annotations
+
 import logging
-import uuid
-from datetime import datetime, timezone
-from typing import Optional
+from typing import Any
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter
+from starlette.concurrency import run_in_threadpool
 
-from app.services.rag_service import rag_service
-from app.services.stellar_service import stellar_service
+from app.core.errors import NotFoundError
+from app.core.security import create_access_token
+from app.db import repository as repo
+from app.schemas import AgentModel, AgentRegistration
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# In-memory agent registry (swap for DB in production)
-_agents: dict[str, dict] = {}
+
+def _to_model(row: dict[str, Any]) -> AgentModel:
+    return AgentModel(
+        agent_id=row["agent_id"],
+        name=row["name"],
+        description=row["description"],
+        stellar_address=row["stellar_address"],
+        credits=int(row["credits"]),
+        total_queries=int(row["total_queries"]),
+        total_spent_xlm=round(float(row["total_spent_xlm"]), 7),
+        status=row["status"],
+        created_at=row["created_at"],
+        last_seen_at=row["last_seen_at"],
+    )
 
 
-# ── Models ────────────────────────────────────────────────────────────────────
-
-class AgentRegistration(BaseModel):
-    name: str
-    description: Optional[str] = None
-    stellar_address: str
-    webhook_url: Optional[str] = None
-
-
-class AgentResponse(BaseModel):
-    agent_id: str
-    name: str
-    stellar_address: str
-    created_at: str
-    status: str
-
-
-# ── Endpoints ─────────────────────────────────────────────────────────────────
-
-@router.post("/register", response_model=AgentResponse)
-async def register_agent(agent: AgentRegistration):
-    """Register a new AI agent with its Stellar wallet address."""
-    agent_id = f"agent_{uuid.uuid4().hex[:12]}"
-    record = {
-        "agent_id": agent_id,
-        "name": agent.name,
-        "description": agent.description,
-        "stellar_address": agent.stellar_address,
-        "webhook_url": agent.webhook_url,
-        "created_at": datetime.now(timezone.utc).isoformat(),
-        "status": "active",
-        "query_count": 0,
-        "xlm_spent": 0.0,
+@router.post(
+    "/register",
+    summary="Register an AI agent",
+    description=(
+        "Creates an agent, grants the free trial credits, and returns a ready-to-use "
+        "access token so a new agent can query immediately."
+    ),
+)
+async def register_agent(body: AgentRegistration) -> dict[str, Any]:
+    agent = await run_in_threadpool(
+        repo.create_agent,
+        body.name,
+        description=body.description,
+        stellar_address=body.stellar_address,
+        webhook_url=body.webhook_url,
+    )
+    token, claims = create_access_token(agent["agent_id"])
+    return {
+        "agent": _to_model(agent).model_dump(),
+        "access_token": token,
+        "token_type": "Bearer",
+        "expires_in": claims.seconds_remaining,
+        "free_credits": int(agent["credits"]),
     }
-    _agents[agent_id] = record
-    logger.info("Registered agent %s (%s)", agent_id, agent.name)
-    return AgentResponse(**record)
 
 
-@router.get("/{agent_id}", response_model=AgentResponse)
-async def get_agent(agent_id: str):
-    """Get agent details."""
-    record = _agents.get(agent_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Agent not found")
-    return AgentResponse(**record)
+@router.get("", summary="List registered agents")
+async def list_agents(limit: int = 50) -> dict[str, Any]:
+    rows = await run_in_threadpool(repo.list_agents, min(limit, 200))
+    return {
+        "agents": [_to_model(row).model_dump() for row in rows],
+        **repo.agent_totals(),
+    }
 
 
-@router.get("/{agent_id}/usage")
-async def get_agent_usage(agent_id: str):
-    """Get an agent's query count and total XLM spent."""
-    record = _agents.get(agent_id)
-    if not record:
-        raise HTTPException(status_code=404, detail="Agent not found")
+@router.get("/{agent_id}", response_model=AgentModel, summary="Get an agent")
+async def get_agent(agent_id: str) -> AgentModel:
+    row = await run_in_threadpool(repo.get_agent, agent_id)
+    if row is None:
+        raise NotFoundError(f"Agent '{agent_id}' is not registered.")
+    return _to_model(row)
+
+
+@router.get("/{agent_id}/usage", summary="Usage and spend for an agent")
+async def agent_usage(agent_id: str) -> dict[str, Any]:
+    row = await run_in_threadpool(repo.get_agent, agent_id)
+    if row is None:
+        raise NotFoundError(f"Agent '{agent_id}' is not registered.")
     return {
         "agent_id": agent_id,
-        "query_count": record["query_count"],
-        "xlm_spent": record["xlm_spent"],
+        "credits_remaining": int(row["credits"]),
+        "total_queries": int(row["total_queries"]),
+        "total_spent_xlm": round(float(row["total_spent_xlm"]), 7),
+        "ledger": await run_in_threadpool(repo.list_ledger, agent_id, 25),
+        "payments": await run_in_threadpool(repo.list_payments, 10, agent_id),
     }
 
 
-@router.get("/")
-async def list_agents():
-    """List all registered agents."""
-    return {"agents": list(_agents.values()), "total": len(_agents)}
+@router.post("/{agent_id}/token", summary="Mint a fresh access token for an agent")
+async def refresh_token(agent_id: str) -> dict[str, Any]:
+    row = await run_in_threadpool(repo.get_or_create_agent, agent_id)
+    token, claims = create_access_token(agent_id)
+    return {
+        "access_token": token,
+        "token_type": "Bearer",
+        "expires_in": claims.seconds_remaining,
+        "credits": int(row["credits"]),
+    }

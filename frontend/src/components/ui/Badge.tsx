@@ -1,32 +1,76 @@
 "use client";
 
-import { clsx } from "clsx";
+import { cn } from "@/lib/utils";
 
-interface BadgeProps {
-  children: React.ReactNode;
-  variant?: "violet" | "blue" | "cyan" | "green" | "amber" | "red";
-  className?: string;
-}
+type Tone = "neutral" | "accent" | "data" | "value" | "positive" | "danger";
 
-const variantMap: Record<string, string> = {
-  violet: "bg-violet-500/15 text-violet-300 border-violet-500/30",
-  blue:   "bg-blue-500/15   text-blue-300   border-blue-500/30",
-  cyan:   "bg-cyan-500/15   text-cyan-300   border-cyan-500/30",
-  green:  "bg-emerald-500/15 text-emerald-300 border-emerald-500/30",
-  amber:  "bg-amber-500/15  text-amber-300  border-amber-500/30",
-  red:    "bg-red-500/15    text-red-300    border-red-500/30",
+const TONE: Record<Tone, string> = {
+  neutral: "border-[color:var(--line)] bg-[var(--surface-raised)] text-[var(--text-secondary)]",
+  accent:
+    "border-[color:var(--line-accent)] bg-[var(--accent-soft)] text-[var(--accent-strong)]",
+  data: "border-[color:var(--data)]/30 bg-[var(--data-soft)] text-[var(--data)]",
+  value: "border-[color:var(--value)]/30 bg-[var(--value-soft)] text-[var(--value)]",
+  positive:
+    "border-[color:var(--positive)]/30 bg-[var(--positive-soft)] text-[var(--positive)]",
+  danger: "border-[color:var(--danger)]/30 bg-[var(--danger-soft)] text-[var(--danger)]",
 };
 
-export function Badge({ children, variant = "violet", className }: BadgeProps) {
+export function Badge({
+  tone = "neutral",
+  className,
+  children,
+  ...rest
+}: { tone?: Tone } & React.HTMLAttributes<HTMLSpanElement>) {
   return (
     <span
-      className={clsx(
-        "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border tracking-wide uppercase",
-        variantMap[variant],
-        className
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[0.6875rem] font-semibold uppercase tracking-[0.08em]",
+        TONE[tone],
+        className,
       )}
+      {...rest}
     >
       {children}
     </span>
   );
+}
+
+export function Chip({
+  active,
+  className,
+  children,
+  ...rest
+}: { active?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      className={cn(
+        "chip cursor-pointer",
+        active
+          ? "border-[color:var(--line-accent)] bg-[var(--accent-soft)] text-[var(--accent-strong)]"
+          : "hover:border-[color:var(--line-strong)] hover:text-[var(--text)]",
+        className,
+      )}
+      {...rest}
+    >
+      {children}
+    </button>
+  );
+}
+
+export function Kbd({ children }: { children: React.ReactNode }) {
+  return <kbd className="kbd">{children}</kbd>;
+}
+
+export function LiveDot({ tone = "positive" }: { tone?: Tone }) {
+  const color = {
+    neutral: "var(--text-muted)",
+    accent: "var(--accent)",
+    data: "var(--data)",
+    value: "var(--value)",
+    positive: "var(--positive)",
+    danger: "var(--danger)",
+  }[tone];
+  return <span className="live-dot" style={{ color }} aria-hidden />;
 }

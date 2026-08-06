@@ -1,0 +1,62 @@
+name: agentic-rag-paywall
+
+services:
+  api:
+    build:
+      context: ./backend
+    container_name: argp-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      SECRET_KEY: ${SECRET_KEY:-}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:?GEMINI_API_KEY is required}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.1-flash-lite}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-models/gemini-embedding-001}
+      STELLAR_NETWORK: ${STELLAR_NETWORK:-testnet}
+      STELLAR_HORIZON_URL: ${STELLAR_HORIZON_URL:-https://horizon-testnet.stellar.org}
+      STELLAR_PUBLIC_KEY: ${STELLAR_PUBLIC_KEY:-}
+      X402_PRICE_XLM: ${X402_PRICE_XLM:-0.01}
+      X402_CREDITS_PER_PAYMENT: ${X402_CREDITS_PER_PAYMENT:-10}
+      X402_SANDBOX_MODE: ${X402_SANDBOX_MODE:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      LOG_JSON: "true"
+      # Keep state on a named volume so containers stay disposable.
+      DATABASE_URL: /app/data/paywall.db
+      CHROMA_PERSIST_DIR: /app/data/chroma
+      UPLOAD_DIR: /app/data/uploads
+    volumes:
+      - api-data:/app/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health', timeout=4).status==200 else 1)"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        # Baked into the client bundle — must be the URL a browser can reach.
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000/api/v1}
+    container_name: argp-web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      # Server-side calls stay on the compose network.
+      API_INTERNAL_URL: http://api:8000/api/v1
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-}
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  api-data:

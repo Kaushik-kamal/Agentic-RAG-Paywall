@@ -1,11 +1,50 @@
-backend/venv/
-frontend/node_modules/
-frontend/.next/
+# ── Secrets ───────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
 
-backend/.env
-frontend/.env.local
-
+# ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
-*.pyc
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+htmlcov/
+.coverage
 
+# ── Runtime data (regenerate with scripts/seed_demo.py) ───────────────────────
 backend/data/chroma/
+backend/data/uploads/
+backend/data/*.db
+backend/data/*.db-shm
+backend/data/*.db-wal
+
+# ── Node / Next.js ────────────────────────────────────────────────────────────
+node_modules/
+.next/
+out/
+build/
+dist/
+*.tsbuildinfo
+.next-dev.log
+.turbo/
+
+# ── Editors & OS ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*~
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-error.log*

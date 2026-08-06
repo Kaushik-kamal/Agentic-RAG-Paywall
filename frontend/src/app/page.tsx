@@ -1,427 +1,413 @@
-"use client";
-
 import Link from "next/link";
 import {
-  ArrowRight, Zap, Bot, Database, CreditCard, Lock, Shield,
-  ChevronRight, BookOpen, Cpu, Layers, Globe
+  ArrowRight,
+  Ban,
+  Binary,
+  Coins,
+  FileSearch,
+  Gauge,
+  Layers,
+  Quote,
+  RefreshCcw,
+  ScanSearch,
+  ShieldCheck,
+  Sparkles,
+  Terminal,
+  Timer,
+  Wallet,
 } from "lucide-react";
-import { Navbar } from "@/components/layout/Navbar";
-import { Footer } from "@/components/layout/Footer";
+
+import { LivePulse } from "@/components/landing/LivePulse";
 import { Badge } from "@/components/ui/Badge";
-import { Card } from "@/components/ui/Card";
+import { ButtonLink } from "@/components/ui/Button";
+import { Card, SectionHeader } from "@/components/ui/Card";
+import { CodeBlock } from "@/components/ui/CodeBlock";
 
-// ── Hero ──────────────────────────────────────────────────────────────────────
+const CAPABILITIES = [
+  {
+    icon: Coins,
+    title: "Priced in the response",
+    body: "An unpaid call returns 402 with the address, the exact amount, and a memo that binds the payment to the request. Agents discover the price from the endpoint, not a pricing page.",
+    accent: "var(--value)",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Credits, not sessions",
+    body: "The token proves identity; the ledger holds value. Each answer debits one credit inside the transaction that records it, so a stolen token buys nothing once the balance is spent.",
+    accent: "var(--accent)",
+  },
+  {
+    icon: Layers,
+    title: "Hybrid retrieval",
+    body: "Dense Gemini embeddings fused with BM25 through Reciprocal Rank Fusion. Paraphrase and rare literal tokens both land — and the fusion is visible in the UI.",
+    accent: "var(--data)",
+  },
+  {
+    icon: Quote,
+    title: "Citations that resolve",
+    body: "Every claim carries a marker that opens the exact passage: document, section breadcrumb, page number, and similarity score.",
+    accent: "var(--positive)",
+  },
+  {
+    icon: Gauge,
+    title: "Confidence you can audit",
+    body: "Scored from retrieval similarity and citation coverage — never the model's own self-assessment, which is poorly calibrated. Expand it to see every input.",
+    accent: "var(--accent)",
+  },
+  {
+    icon: RefreshCcw,
+    title: "Failure is free",
+    body: "If generation fails or the connection drops mid-stream, the credit is refunded automatically. Retrying is always safe.",
+    accent: "var(--data)",
+  },
+] as const;
 
-function Hero() {
+const PIPELINE = [
+  { icon: FileSearch, label: "Parse", note: "PDF · DOCX · MD · TXT · CSV" },
+  { icon: Layers, label: "Chunk", note: "Heading-aware, sentence overlap" },
+  { icon: Binary, label: "Embed", note: "Gemini · 3072-dim vectors" },
+  { icon: ScanSearch, label: "Retrieve", note: "Dense + BM25 · RRF fusion" },
+  { icon: Sparkles, label: "Ground", note: "Numbered context, forced citations" },
+  { icon: Gauge, label: "Score", note: "Confidence from evidence" },
+] as const;
+
+const COMPARISON = [
+  ["Signup required", "Yes", "Yes", "No"],
+  ["Cost per call", "Amortised", "$0.30 + 2.9%", "~$0.0000011"],
+  ["Settlement", "Monthly invoice", "2–7 days", "~5 seconds"],
+  ["Works for an agent", "No", "No", "Yes"],
+] as const;
+
+export default function LandingPage() {
   return (
-    <section className="relative pt-40 pb-28 px-6 overflow-hidden">
-      {/* Radial glow orbs */}
-      <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-violet-600/10 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute top-40 left-1/4 w-[300px] h-[300px] bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+    <>
+      {/* ── Hero ──────────────────────────────────────────────────────────── */}
+      <section className="relative overflow-hidden pb-20 pt-20 md:pt-28">
+        <div className="shell relative">
+          <div className="mx-auto max-w-3xl text-center">
+            <Badge tone="accent" className="mb-6">
+              <Sparkles size={11} />
+              HTTP 402 · Stellar · Gemini
+            </Badge>
 
-      <div className="relative max-w-5xl mx-auto text-center">
-        <Badge variant="violet" className="mb-8 inline-flex">
-          <span className="pulse-dot violet" />
-          Powered by Stellar x402 Micropayments
-        </Badge>
+            <h1 className="text-display">
+              A knowledge API that{" "}
+              <span className="text-gradient">agents pay for</span>
+            </h1>
 
-        <h1 className="hero-heading mb-6">
-          AI Agents Pay to{" "}
-          <span className="gradient-text">Access Knowledge</span>
-        </h1>
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-[var(--text-secondary)] md:text-lg">
+              No account. No card. No subscription. An autonomous agent calls the
+              endpoint, reads the price off a{" "}
+              <span className="mono rounded bg-[var(--surface-active)] px-1.5 py-0.5 text-[0.9em] text-[var(--value)]">
+                402
+              </span>
+              , settles a micropayment on Stellar, and gets back an answer that cites
+              its sources — in about five seconds.
+            </p>
 
-        <p className="text-lg md:text-xl text-slate-400 max-w-2xl mx-auto mb-10 leading-relaxed">
-          A RAG-powered knowledge API where autonomous agents authenticate via
-          Stellar micropayments. No subscriptions. No API keys. Just{" "}
-          <span className="text-cyan-400 font-semibold">pay-per-query</span> intelligence.
-        </p>
-
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          <Link href="/demo" className="btn-primary text-base px-8 py-3.5 gap-2">
-            Watch AI Agent Demo
-            <ArrowRight size={18} />
-          </Link>
-          <Link href="/dashboard" className="btn-secondary text-base px-8 py-3.5">
-            View Dashboard
-          </Link>
-        </div>
-
-        {/* Floating stat pills */}
-        <div className="flex flex-wrap items-center justify-center gap-6 mt-16">
-          {[
-            { label: "Avg Query Cost", value: "0.01 XLM", icon: <CreditCard size={14} /> },
-            { label: "Response Time", value: "< 2s",      icon: <Zap size={14} /> },
-            { label: "Powered by",    value: "Gemini",    icon: <Cpu size={14} /> },
-          ].map((stat) => (
-            <div key={stat.label} className="glass-card gradient-border rounded-xl px-5 py-3 flex items-center gap-3">
-              <span className="text-violet-400">{stat.icon}</span>
-              <span className="text-slate-400 text-sm">{stat.label}:</span>
-              <span className="text-white font-semibold text-sm">{stat.value}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── How It Works ──────────────────────────────────────────────────────────────
-
-const steps = [
-  {
-    step: "01",
-    icon: <Bot size={28} />,
-    title: "Agent Sends Query",
-    description:
-      "An autonomous AI agent (or your own code) sends a natural-language question to the /rag/query endpoint. The server responds with HTTP 402 Payment Required.",
-    accent: "violet" as const,
-    code: `POST /api/v1/rag/query
-{ "query": "What is quantum entanglement?",
-  "agent_id": "agent_abc123" }
-
-← HTTP 402 Payment Required
-  X-Payment-Address: GCEX...
-  X-Payment-Amount: 0.01 XLM`,
-  },
-  {
-    step: "02",
-    icon: <CreditCard size={28} />,
-    title: "Stellar Micropayment",
-    description:
-      "The agent reads the 402 challenge, signs a Stellar transaction for 0.01 XLM, and submits it to the Stellar testnet in under 5 seconds.",
-    accent: "blue" as const,
-    code: `// Agent pays automatically
-const tx = new StellarTransaction()
-  .addOperation(Payment({
-    destination: "GCEX...",
-    asset: Asset.native(),
-    amount: "0.01"
-  }))
-  .sign(agentKeyPair)
-  .submit(server)`,
-  },
-  {
-    step: "03",
-    icon: <Database size={28} />,
-    title: "RAG Knowledge Retrieval",
-    description:
-      "FastAPI verifies the transaction on-chain. LangChain queries ChromaDB with Gemini embeddings to retrieve the most relevant document chunks.",
-    accent: "cyan" as const,
-    code: `# Verified ✓ → RAG pipeline
-embeddings = GeminiEmbeddings()
-retriever  = chroma.as_retriever(k=5)
-chain = RetrievalQA.from_chain_type(
-  llm=Gemini("gemini-2.0-flash"),
-  retriever=retriever
-)
-answer = chain.invoke(query)`,
-  },
-  {
-    step: "04",
-    icon: <Zap size={28} />,
-    title: "Answer Delivered",
-    description:
-      "Gemini synthesises an answer from retrieved chunks. The full response, sources, and token usage are streamed back to the agent.",
-    accent: "violet" as const,
-    code: `← HTTP 200 OK
-{
-  "answer": "Quantum entanglement is...",
-  "sources": ["physics_101.pdf#p12"],
-  "tokens_used": 847,
-  "cost_xlm": 0.01
-}`,
-  },
-];
-
-function HowItWorks() {
-  return (
-    <section id="how-it-works" className="py-24 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <Badge variant="cyan" className="mb-4">How It Works</Badge>
-          <h2 className="section-heading mb-4">
-            From Question to <span className="gradient-text">Paid Answer</span>
-          </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">
-            Four steps from raw query to verified micropayment to Gemini-synthesised answer.
-          </p>
-        </div>
-
-        <div className="space-y-6">
-          {steps.map((step, i) => (
-            <div key={step.step} className="grid md:grid-cols-2 gap-6 items-start">
-              {/* Info card */}
-              <Card
-                glow={i % 2 === 0 ? "violet" : "blue"}
-                className={`${i % 2 === 1 ? "md:order-2" : ""}`}
+            <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <ButtonLink
+                href="/console"
+                variant="primary"
+                size="lg"
+                iconRight={<ArrowRight size={16} />}
               >
-                <div className="flex items-start gap-4">
-                  <div
-                    className={`p-3 rounded-xl flex-shrink-0 ${
-                      step.accent === "violet"
-                        ? "bg-violet-500/15 text-violet-400"
-                        : step.accent === "blue"
-                        ? "bg-blue-500/15 text-blue-400"
-                        : "bg-cyan-500/15 text-cyan-400"
-                    }`}
-                  >
-                    {step.icon}
-                  </div>
+                Open the console
+              </ButtonLink>
+              <ButtonLink href="/protocol" size="lg" icon={<Wallet size={15} />}>
+                Watch an agent pay
+              </ButtonLink>
+            </div>
+
+            <p className="mt-4 text-xs text-[var(--text-faint)]">
+              Three free credits on arrival — no wallet needed to try it.
+            </p>
+          </div>
+
+          <LivePulse />
+        </div>
+      </section>
+
+      {/* ── The handshake ─────────────────────────────────────────────────── */}
+      <section className="shell py-16">
+        <div className="grid items-center gap-10 lg:grid-cols-[1fr_1.05fr]">
+          <div>
+            <SectionHeader
+              eyebrow="The handshake"
+              title={
+                <>
+                  Payment is part of{" "}
+                  <span className="text-gradient">the protocol</span>
+                </>
+              }
+              description="402 Payment Required sat unused in the HTTP spec for thirty years. It turns out to be exactly the right primitive when the client is software with a wallet and no patience for a signup form."
+            />
+
+            <ol className="mt-7 space-y-4">
+              {[
+                ["Call", "The agent requests an answer with no credential."],
+                ["402", "The server replies with destination, amount, and memo."],
+                ["Settle", "The agent pays on Stellar. Ledger closes in ~5s."],
+                ["Redeem", "The hash is verified on-chain and buys query credits."],
+                ["Answer", "The retry streams back, cited, one credit spent."],
+              ].map(([label, description], index) => (
+                <li key={label} className="flex gap-4">
+                  <span className="mono grid h-7 w-7 shrink-0 place-items-center rounded-full border border-[color:var(--line-accent)] bg-[var(--accent-soft)] text-[0.6875rem] font-semibold text-[var(--accent-strong)]">
+                    {index + 1}
+                  </span>
                   <div>
-                    <span className="text-xs font-mono text-slate-600 mb-1 block">
-                      Step {step.step}
-                    </span>
-                    <h3 className="text-xl font-bold text-white mb-3">{step.title}</h3>
-                    <p className="text-slate-400 leading-relaxed text-sm">{step.description}</p>
+                    <p className="text-sm font-medium text-[var(--text)]">{label}</p>
+                    <p className="mt-0.5 text-sm text-[var(--text-muted)]">
+                      {description}
+                    </p>
                   </div>
-                </div>
-              </Card>
+                </li>
+              ))}
+            </ol>
 
-              {/* Code block */}
-              <div
-                className={`glass-card rounded-2xl overflow-hidden ${
-                  i % 2 === 1 ? "md:order-1" : ""
-                }`}
+            <ButtonLink
+              href="/protocol"
+              className="mt-7"
+              iconRight={<ArrowRight size={14} />}
+            >
+              Run it live
+            </ButtonLink>
+          </div>
+
+          <CodeBlock
+            filename="the wire"
+            maxHeight="30rem"
+            code={`$ curl -X POST localhost:8000/api/v1/rag/query \\
+       -d '{"query":"Why does the memo matter?",
+            "agent_id":"agent_researcher"}'
+
+← HTTP/1.1 402 Payment Required
+  X-Payment-Address:   GAGKTSAT…K4J63NWKH
+  X-Payment-Amount:    0.01
+  X-Payment-Asset:     XLM
+  X-Payment-Network:   testnet
+  X-Payment-Memo:      x402-9f3a21c8
+  X-Payment-Credits:   10
+
+# agent signs and submits on Stellar … 3.1s
+
+$ curl -X POST …/payments/verify \\
+       -d '{"transaction_hash":"11d2e29a…",
+            "agent_id":"agent_researcher",
+            "challenge_id":"chal_4b7e…"}'
+
+← HTTP/1.1 200 OK
+  { "verified": true,
+    "mode": "live",
+    "credits_granted": 10,
+    "access_token": "argp.eyJhaWQiOi…" }
+
+$ curl …/rag/query -H "Authorization: Bearer argp.…"
+
+← HTTP/1.1 200 OK
+  { "answer": "A memo attributes an incoming
+       payment to a specific challenge [1]…",
+    "citations": [
+      { "marker": 1,
+        "locator": "The Stellar Network › Memos",
+        "score": 0.85, "used": true } ],
+    "confidence": { "percent": 89,
+                    "label": "High confidence" },
+    "cost_xlm": 0.01,
+    "credits_remaining": 9 }`}
+          />
+        </div>
+      </section>
+
+      {/* ── Capabilities ──────────────────────────────────────────────────── */}
+      <section className="shell py-16">
+        <SectionHeader
+          eyebrow="What is actually built"
+          title={
+            <>
+              Engineering the demo{" "}
+              <span className="text-gradient">does not hide</span>
+            </>
+          }
+          description="Each of these is inspectable in the running product — not a claim on a slide."
+        />
+
+        <div className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {CAPABILITIES.map(({ icon: Icon, title, body, accent }) => (
+            <Card key={title} interactive className="group">
+              <span
+                className="grid h-10 w-10 place-items-center rounded-[var(--radius-sm)] transition-transform duration-300 group-hover:scale-105"
+                style={{
+                  background: `color-mix(in oklab, ${accent} 14%, transparent)`,
+                  color: accent,
+                }}
               >
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-                  <span className="w-3 h-3 rounded-full bg-red-400/70" />
-                  <span className="w-3 h-3 rounded-full bg-amber-400/70" />
-                  <span className="w-3 h-3 rounded-full bg-emerald-400/70" />
-                  <span className="ml-2 text-xs font-mono text-slate-600">terminal</span>
-                </div>
-                <pre className="p-5 text-xs font-mono text-emerald-300 leading-relaxed overflow-x-auto">
-                  {step.code}
-                </pre>
-              </div>
-            </div>
+                <Icon size={18} />
+              </span>
+              <h3 className="mt-4 text-[0.9375rem] font-semibold text-[var(--text)]">
+                {title}
+              </h3>
+              <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+                {body}
+              </p>
+            </Card>
           ))}
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-// ── Architecture Flow ─────────────────────────────────────────────────────────
+      {/* ── Pipeline ──────────────────────────────────────────────────────── */}
+      <section className="shell py-16">
+        <SectionHeader
+          eyebrow="Retrieval pipeline"
+          title="From a dropped file to a cited claim"
+          description="Six stages, all instrumented. The console shows you the trace for every answer: what each retriever ranked, how fusion reordered it, and why a candidate was dropped."
+        />
 
-const archNodes = [
-  { icon: <Bot size={20} />,      label: "AI Agent",     sub: "Any LLM client",     color: "violet" },
-  { icon: <Globe size={20} />,    label: "FastAPI",       sub: "HTTP 402 gateway",   color: "blue"   },
-  { icon: <CreditCard size={20} />,label: "Stellar",      sub: "x402 micropayment",  color: "cyan"   },
-  { icon: <Layers size={20} />,   label: "LangChain",    sub: "RAG orchestration",  color: "violet" },
-  { icon: <Database size={20} />, label: "ChromaDB",     sub: "Vector store",       color: "blue"   },
-  { icon: <Cpu size={20} />,      label: "Gemini API",   sub: "LLM + embeddings",   color: "cyan"   },
-];
-
-const colorMap: Record<string, { bg: string; text: string; border: string }> = {
-  violet: { bg: "bg-violet-500/15", text: "text-violet-400", border: "border-violet-500/30" },
-  blue:   { bg: "bg-blue-500/15",   text: "text-blue-400",   border: "border-blue-500/30"   },
-  cyan:   { bg: "bg-cyan-500/15",   text: "text-cyan-400",   border: "border-cyan-500/30"   },
-};
-
-function ArchitectureFlow() {
-  return (
-    <section id="architecture" className="py-24 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <Badge variant="blue" className="mb-4">Architecture</Badge>
-          <h2 className="section-heading mb-4">
-            Full-Stack <span className="gradient-text">System Design</span>
-          </h2>
-          <p className="text-slate-400 max-w-xl mx-auto">
-            Every component from agent to answer — connected via payments and vectors.
-          </p>
-        </div>
-
-        {/* Flow diagram */}
-        <div className="glass-card gradient-border rounded-3xl p-8 md:p-12">
-          <div className="flex flex-col md:flex-row items-center justify-center gap-0">
-            {archNodes.map((node, i) => {
-              const c = colorMap[node.color];
-              return (
-                <div key={node.label} className="flex flex-col md:flex-row items-center">
-                  {/* Node */}
-                  <div className="flex flex-col items-center group">
-                    <div
-                      className={`w-20 h-20 rounded-2xl border ${c.bg} ${c.border} ${c.text}
-                        flex items-center justify-center mb-3
-                        transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg`}
-                    >
-                      {node.icon}
-                    </div>
-                    <span className="text-sm font-semibold text-white">{node.label}</span>
-                    <span className="text-xs text-slate-500 text-center mt-0.5">{node.sub}</span>
+        <div className="panel edge-lit mt-8 overflow-hidden p-6 md:p-8">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
+            {PIPELINE.map(({ icon: Icon, label, note }, index) => (
+              <div key={label} className="relative">
+                <div className="rounded-[var(--radius)] border border-[color:var(--line)] bg-[var(--surface-raised)] p-4 transition-colors duration-200 hover:border-[color:var(--line-accent)]">
+                  <div className="flex items-center gap-2 text-[var(--accent-strong)]">
+                    <Icon size={15} />
+                    <span className="mono text-[0.625rem] text-[var(--text-faint)]">
+                      0{index + 1}
+                    </span>
                   </div>
+                  <p className="mt-2.5 text-sm font-medium text-[var(--text)]">{label}</p>
+                  <p className="mt-1 text-[0.6875rem] leading-relaxed text-[var(--text-muted)]">
+                    {note}
+                  </p>
+                </div>
+                {index < PIPELINE.length - 1 ? (
+                  <ArrowRight
+                    size={13}
+                    aria-hidden
+                    className="absolute -right-2.5 top-1/2 hidden -translate-y-1/2 text-[var(--text-faint)] lg:block"
+                  />
+                ) : null}
+              </div>
+            ))}
+          </div>
 
-                  {/* Arrow connector */}
-                  {i < archNodes.length - 1 && (
-                    <div className="flex flex-col items-center md:flex-row my-4 md:my-0 md:mx-3">
-                      <div className="md:hidden w-px h-8 bg-gradient-to-b from-violet-500 to-blue-500" />
-                      <div className="hidden md:flex items-center gap-1">
-                        <div className="w-8 h-px bg-gradient-to-r from-violet-500 to-blue-500" />
-                        <ChevronRight size={14} className="text-violet-400 -ml-1" />
-                      </div>
-                      <div className="md:hidden">
-                        <ChevronRight size={14} className="text-violet-400 rotate-90" />
-                      </div>
-                    </div>
-                  )}
+          <div className="mt-6 grid gap-3 border-t border-[color:var(--line)] pt-6 sm:grid-cols-3">
+            {[
+              [Timer, "Streaming", "Tokens arrive as they are generated; the retrieval trace lands before the first word."],
+              [Ban, "No hallucination budget", "The model answers only from numbered context and is told to refuse when it cannot."],
+              [Terminal, "Free retrieval", "Semantic search costs nothing — you only pay when a model writes."],
+            ].map(([Icon, title, body]) => {
+              const Component = Icon as typeof Timer;
+              return (
+                <div key={title as string} className="flex gap-3">
+                  <Component size={15} className="mt-0.5 shrink-0 text-[var(--data)]" />
+                  <div>
+                    <p className="text-[0.8125rem] font-medium text-[var(--text)]">
+                      {title as string}
+                    </p>
+                    <p className="mt-0.5 text-xs leading-relaxed text-[var(--text-muted)]">
+                      {body as string}
+                    </p>
+                  </div>
                 </div>
               );
             })}
           </div>
-
-          {/* Legend */}
-          <div className="mt-10 pt-8 border-t border-white/5 grid grid-cols-2 md:grid-cols-3 gap-4">
-            {[
-              { label: "Frontend",   val: "Next.js 16 + TypeScript + Tailwind", icon: <Globe size={14} /> },
-              { label: "Backend",    val: "FastAPI + Python + Pydantic",         icon: <Shield size={14} /> },
-              { label: "Payments",   val: "Stellar SDK + x402 protocol",         icon: <CreditCard size={14} /> },
-              { label: "Vector DB",  val: "ChromaDB (persistent)",               icon: <Database size={14} /> },
-              { label: "LLM",        val: "Gemini 2.0 Flash",                    icon: <Cpu size={14} /> },
-              { label: "RAG Chain",  val: "LangChain RetrievalQA",               icon: <Layers size={14} /> },
-            ].map((item) => (
-              <div key={item.label} className="flex items-start gap-2.5">
-                <span className="text-violet-400 mt-0.5 flex-shrink-0">{item.icon}</span>
-                <div>
-                  <p className="text-xs font-semibold text-slate-300">{item.label}</p>
-                  <p className="text-xs text-slate-500">{item.val}</p>
-                </div>
-              </div>
-            ))}
-          </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-// ── Features grid ─────────────────────────────────────────────────────────────
+      {/* ── Comparison ────────────────────────────────────────────────────── */}
+      <section className="shell py-16">
+        <SectionHeader
+          eyebrow="Why not just use Stripe"
+          title="Because the buyer is not a person"
+          description="Card rails assume a human who can wait days for settlement and accept a fixed fee larger than the purchase. Neither holds when a research agent needs one answer from an API it discovered thirty seconds ago."
+        />
 
-const features = [
-  {
-    icon: <Lock size={22} />,
-    title: "Payment-Gated Access",
-    desc: "Every API call requires a verified Stellar transaction. No payment = HTTP 402. Zero subscriptions.",
-    accent: "violet",
-  },
-  {
-    icon: <BookOpen size={22} />,
-    title: "LangChain RAG Pipeline",
-    desc: "Documents are chunked, embedded with Gemini, stored in ChromaDB, and retrieved with semantic search.",
-    accent: "blue",
-  },
-  {
-    icon: <Bot size={22} />,
-    title: "Autonomous Agent Ready",
-    desc: "Any AI agent with a Stellar wallet can query the knowledge API autonomously — no human in the loop.",
-    accent: "cyan",
-  },
-  {
-    icon: <Zap size={22} />,
-    title: "Sub-second Payments",
-    desc: "Stellar settles in 3–5 seconds. Agents get access tokens immediately after on-chain confirmation.",
-    accent: "violet",
-  },
-  {
-    icon: <Database size={22} />,
-    title: "Upload Any Documents",
-    desc: "PDFs, text files, web pages — ingest them into your private ChromaDB knowledge base via the admin API.",
-    accent: "blue",
-  },
-  {
-    icon: <Shield size={22} />,
-    title: "Tamper-Proof Billing",
-    desc: "All payments are verified on the Stellar blockchain. Replay attacks are prevented with transaction IDs.",
-    accent: "cyan",
-  },
-];
-
-function Features() {
-  return (
-    <section id="features" className="py-24 px-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="text-center mb-16">
-          <Badge variant="green" className="mb-4">Features</Badge>
-          <h2 className="section-heading mb-4">
-            Everything an <span className="gradient-text">Agentic Economy</span> Needs
-          </h2>
+        <div className="panel mt-8 overflow-x-auto">
+          <table className="w-full min-w-[34rem] text-sm">
+            <thead>
+              <tr className="border-b border-[color:var(--line)]">
+                <th className="px-5 py-3 text-left font-medium text-[var(--text-muted)]">
+                  &nbsp;
+                </th>
+                <th className="px-5 py-3 text-left font-medium text-[var(--text-muted)]">
+                  API key + invoice
+                </th>
+                <th className="px-5 py-3 text-left font-medium text-[var(--text-muted)]">
+                  Card per call
+                </th>
+                <th className="px-5 py-3 text-left font-semibold text-[var(--accent-strong)]">
+                  x402 on Stellar
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {COMPARISON.map(([label, a, b, c]) => (
+                <tr
+                  key={label}
+                  className="border-b border-[color:var(--line)] last:border-0"
+                >
+                  <td className="px-5 py-3 font-medium text-[var(--text)]">{label}</td>
+                  <td className="px-5 py-3 text-[var(--text-muted)]">{a}</td>
+                  <td className="px-5 py-3 text-[var(--text-muted)]">{b}</td>
+                  <td className="px-5 py-3">
+                    <span className="font-medium text-[var(--positive)]">{c}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
+      </section>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-          {features.map((f) => {
-            const c = colorMap[f.accent];
-            return (
-              <Card key={f.title} hover glow={f.accent as "violet" | "blue" | "cyan"}>
-                <div className={`w-12 h-12 rounded-xl ${c.bg} ${c.text} flex items-center justify-center mb-4`}>
-                  {f.icon}
-                </div>
-                <h3 className="text-lg font-bold text-white mb-2">{f.title}</h3>
-                <p className="text-slate-400 text-sm leading-relaxed">{f.desc}</p>
-              </Card>
-            );
-          })}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-// ── CTA ───────────────────────────────────────────────────────────────────────
-
-function CTA() {
-  return (
-    <section className="py-24 px-6">
-      <div className="max-w-3xl mx-auto text-center">
-        <div className="glass-card gradient-border rounded-3xl p-12 relative overflow-hidden">
-          {/* Glow blob */}
-          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/10 to-blue-600/10 rounded-3xl" />
-
+      {/* ── CTA ───────────────────────────────────────────────────────────── */}
+      <section className="shell pb-8 pt-10">
+        <div className="panel edge-lit relative overflow-hidden px-6 py-14 text-center md:px-12">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 -top-24 h-48 opacity-30 blur-3xl"
+            style={{
+              background:
+                "radial-gradient(ellipse at center, var(--accent), transparent 70%)",
+            }}
+          />
           <div className="relative">
-            <Badge variant="amber" className="mb-6">
-              <span className="pulse-dot amber" />
-              Live on Stellar Testnet
-            </Badge>
-
-            <h2 className="section-heading mb-4">
-              Ready to Build the{" "}
-              <span className="gradient-text">Agentic Economy?</span>
+            <h2 className="text-title">
+              Ask it something{" "}
+              <span className="text-gradient">right now</span>
             </h2>
-
-            <p className="text-slate-400 mb-8 leading-relaxed">
-              Watch a live AI agent pay 0.01 XLM and receive a Gemini-generated answer —
-              all in under 10 seconds.
+            <p className="mx-auto mt-4 max-w-lg text-[0.9375rem] leading-relaxed text-[var(--text-muted)]">
+              The knowledge base ships seeded with primary material on Stellar
+              consensus, the x402 protocol, retrieval architecture, and agent
+              economics. Or drop in your own PDF and query that instead.
             </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/demo" className="btn-primary text-base px-10 py-3.5 gap-2">
-                <Bot size={18} />
-                Launch AI Demo
-              </Link>
-              <Link href="/dashboard" className="btn-secondary text-base px-10 py-3.5">
-                View Analytics
-              </Link>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <ButtonLink
+                href="/console"
+                variant="primary"
+                size="lg"
+                iconRight={<ArrowRight size={16} />}
+              >
+                Open the console
+              </ButtonLink>
+              <ButtonLink href="/library" size="lg">
+                Upload a document
+              </ButtonLink>
             </div>
+            <p className="mt-6 text-xs text-[var(--text-faint)]">
+              Press{" "}
+              <kbd className="kbd">⌘K</kbd> anywhere to search the knowledge base
+            </p>
           </div>
         </div>
-      </div>
-    </section>
-  );
-}
+      </section>
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
-export default function HomePage() {
-  return (
-    <>
-      <Navbar />
-      <main className="flex-1">
-        <Hero />
-        <HowItWorks />
-        <ArchitectureFlow />
-        <Features />
-        <CTA />
-      </main>
-      <Footer />
+      <p className="shell pb-4 text-center text-xs text-[var(--text-faint)]">
+        Built as an open, inspectable reference for the agentic economy ·{" "}
+        <Link href="/dashboard" className="hover:text-[var(--text-secondary)]">
+          see the live numbers
+        </Link>
+      </p>
     </>
   );
 }

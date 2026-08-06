@@ -1,26 +1,24 @@
+# ── Web framework ─────────────────────────────────────────────────────────────
 fastapi==0.115.5
 uvicorn[standard]==0.32.1
+python-multipart==0.0.20
 pydantic==2.10.3
 pydantic-settings==2.6.1
-python-dotenv==1.0.1
 
-# AI & RAG
-langchain==0.3.12
+# ── LLM & embeddings ──────────────────────────────────────────────────────────
+langchain-core==0.3.63
 langchain-google-genai==2.1.4
-langchain-chroma==0.1.4
-langchain-community==0.3.12
-chromadb==0.5.23
 
-# Stellar
+# ── Vector store & retrieval ──────────────────────────────────────────────────
+chromadb==0.5.23
+rank-bm25==0.2.2
+
+# ── Document parsing ──────────────────────────────────────────────────────────
+pypdf==5.1.0
+python-docx==1.2.0
+
+# ── Payments ──────────────────────────────────────────────────────────────────
 stellar-sdk==9.0.0
 
-# Auth
-python-jose[cryptography]==3.3.0
-passlib[bcrypt]==1.7.4
-
-# HTTP
+# ── HTTP client ───────────────────────────────────────────────────────────────
 httpx==0.28.1
-
-# Document parsing
-pypdf==5.1.0
-python-multipart==0.0.20
