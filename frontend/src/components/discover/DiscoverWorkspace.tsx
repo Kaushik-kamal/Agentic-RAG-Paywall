@@ -28,6 +28,8 @@ import { Button } from "@/components/ui/Button";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { CopyButton } from "@/components/ui/CodeBlock";
 import { EmptyState, OfflineBanner } from "@/components/ui/Feedback";
+import { Purpose } from "@/components/ui/Purpose";
+import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { ApiError } from "@/lib/api";
 import { routeRequest, type RouteDone } from "@/lib/routeStream";
 import type { Citation, Objective, RouteCandidate } from "@/lib/types";
@@ -291,7 +293,13 @@ export function DiscoverWorkspace() {
           </>
         }
         description="Ask anything. The routing agent reads the registry, ranks every listed service on capability, trust, price and latency, explains its choice, pays, and returns the answer — with no hard-coded endpoint anywhere."
+        actions={<StartDemoButton showHint />}
       />
+
+      <Purpose className="mt-4">
+        Autonomous selection, settlement and consumption of a service the agent has
+        never seen.
+      </Purpose>
 
       {offline ? <OfflineBanner className="mt-6" /> : null}
 

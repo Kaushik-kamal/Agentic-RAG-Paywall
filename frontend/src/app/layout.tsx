@@ -4,7 +4,10 @@ import Script from "next/script";
 
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { PageTransition } from "@/components/layout/PageTransition";
 import { CommandPalette } from "@/components/layout/CommandPalette";
+import { DemoOverlay } from "@/components/demo/DemoOverlay";
+import { DemoProvider } from "@/components/demo/DemoProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
 import { ThemeProvider, themeInitScript } from "@/components/providers/ThemeProvider";
 import { ToastProvider } from "@/components/providers/ToastProvider";
@@ -96,12 +99,18 @@ export default function RootLayout({
         <ThemeProvider>
           <ToastProvider>
             <SessionProvider>
-              <Navbar />
-              <main id="main" className="flex-1">
-                {children}
-              </main>
-              <Footer />
-              <CommandPalette />
+              <DemoProvider>
+                <Navbar />
+                {/* `key` on the route makes every navigation settle in the same
+                    way, so the product reads as one surface rather than a set
+                    of separate documents. */}
+                <main id="main" className="flex-1">
+                  <PageTransition>{children}</PageTransition>
+                </main>
+                <Footer />
+                <CommandPalette />
+                <DemoOverlay />
+              </DemoProvider>
             </SessionProvider>
           </ToastProvider>
         </ThemeProvider>

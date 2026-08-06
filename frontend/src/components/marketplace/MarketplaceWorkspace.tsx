@@ -19,6 +19,7 @@ import { Badge, Chip, LiveDot } from "@/components/ui/Badge";
 import { Button, ButtonLink } from "@/components/ui/Button";
 import { Card, SectionHeader, StatTile } from "@/components/ui/Card";
 import { EmptyState, OfflineBanner, Skeleton } from "@/components/ui/Feedback";
+import { Purpose } from "@/components/ui/Purpose";
 import { ApiError, getNetworkStats, listProviders } from "@/lib/api";
 import type { NetworkStats, Provider } from "@/lib/types";
 import { cn, formatCount, formatDuration, formatRelative, formatXlm } from "@/lib/utils";
@@ -109,7 +110,7 @@ export function MarketplaceWorkspace() {
         }
         description="Every service publishes its price, latency, capabilities and payment terms. Agents arrive knowing none of them, read this registry, and decide for themselves."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="demo-quiet flex items-center gap-2">
             <ButtonLink href="/discover" variant="primary" icon={<Network size={14} />}>
               Route a request
             </ButtonLink>
@@ -119,6 +120,11 @@ export function MarketplaceWorkspace() {
           </div>
         }
       />
+
+      <Purpose className="mt-4">
+        Autonomous discovery of specialised AI providers, each publishing its own
+        terms.
+      </Purpose>
 
       {offline ? <OfflineBanner className="mt-6" /> : null}
 
@@ -258,7 +264,7 @@ export function MarketplaceWorkspace() {
           />
         </Card>
       ) : (
-        <ul className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <ul className="stagger mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visible.map((provider) => (
             <li key={provider.provider_id}>
               <ProviderCard provider={provider} />

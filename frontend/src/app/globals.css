@@ -608,6 +608,47 @@ body {
     opacity: 0;
   }
 }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes boot-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+/* Success is marked by light, not by paper. */
+@keyframes success-pulse {
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--positive) 45%, transparent),
+      var(--shadow-lg);
+  }
+  70% {
+    box-shadow:
+      0 0 0 14px color-mix(in oklab, var(--positive) 0%, transparent),
+      var(--shadow-lg);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 color-mix(in oklab, var(--positive) 0%, transparent),
+      var(--shadow-lg);
+  }
+}
+@keyframes settle {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.995);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
 
 .animate-rise {
   animation: rise var(--dur-slow) var(--ease-out) both;
@@ -618,6 +659,30 @@ body {
 .animate-pop {
   animation: pop var(--dur) var(--ease-spring) both;
 }
+
+.success-glow {
+  animation: success-pulse 1.6s var(--ease-out) 1;
+}
+
+/* Every page settles in the same way, so navigation feels like one product
+   rather than a set of documents. */
+.page-enter {
+  animation: settle 0.34s var(--ease-out) both;
+}
+
+/* Stagger a list without a JS animation library. */
+.stagger > * {
+  animation: settle 0.34s var(--ease-out) both;
+}
+.stagger > *:nth-child(1) { animation-delay: 0.02s; }
+.stagger > *:nth-child(2) { animation-delay: 0.05s; }
+.stagger > *:nth-child(3) { animation-delay: 0.08s; }
+.stagger > *:nth-child(4) { animation-delay: 0.11s; }
+.stagger > *:nth-child(5) { animation-delay: 0.14s; }
+.stagger > *:nth-child(6) { animation-delay: 0.17s; }
+.stagger > *:nth-child(7) { animation-delay: 0.2s; }
+.stagger > *:nth-child(8) { animation-delay: 0.23s; }
+.stagger > *:nth-child(n + 9) { animation-delay: 0.26s; }
 
 .skeleton {
   background: linear-gradient(
@@ -661,6 +726,56 @@ body {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Presentation mode
+   While the demo runs, ordinary chrome recedes so the story is the only thing
+   competing for attention. Nothing is removed from the DOM — it dims, so the
+   product still visibly works.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root[data-demo="on"] .demo-quiet {
+  opacity: 0.28;
+  filter: saturate(0.55);
+  pointer-events: none;
+  transition:
+    opacity var(--dur-slow) var(--ease-out),
+    filter var(--dur-slow) var(--ease-out);
+}
+
+:root[data-demo="on"] body {
+  /* Leave room for the HUD rail so nothing important hides beneath it. */
+  padding-top: 3.5rem;
+}
+
+/* Keep the sticky nav below the HUD rather than sliding under it. */
+:root[data-demo="on"] header {
+  top: 3.5rem;
+}
+
+:root[data-demo="on"] .demo-focus {
+  box-shadow: var(--shadow-glow);
+  border-color: var(--line-accent);
+  transition:
+    box-shadow var(--dur-slow) var(--ease-out),
+    border-color var(--dur-slow) var(--ease-out);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   Storytelling
+   One sentence per screen, styled consistently so a judge learns to look for it.
+   ════════════════════════════════════════════════════════════════════════ */
+
+.purpose {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  border-left: 2px solid var(--line-accent);
+  padding-left: 0.75rem;
 }
 
 /* ════════════════════════════════════════════════════════════════════════════

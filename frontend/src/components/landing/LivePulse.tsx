@@ -11,9 +11,9 @@ import { useEffect, useState } from "react";
 import { Coins, Database, Gauge, MessageSquare } from "lucide-react";
 
 import { LiveDot } from "@/components/ui/Badge";
+import { CountUp } from "@/components/ui/CountUp";
 import { getStats } from "@/lib/api";
 import type { PlatformStats } from "@/lib/types";
-import { formatCount, formatDuration, formatXlm } from "@/lib/utils";
 
 export function LivePulse() {
   const [stats, setStats] = useState<PlatformStats | null>(null);
@@ -45,25 +45,31 @@ export function LivePulse() {
     {
       icon: MessageSquare,
       label: "Answers delivered",
-      value: formatCount(stats?.total_queries ?? 0),
+      node: <CountUp value={stats?.total_queries ?? 0} />,
       tone: "var(--accent)",
     },
     {
       icon: Coins,
       label: "Settled on Stellar",
-      value: `${formatXlm(stats?.total_revenue_xlm ?? 0, 3)} XLM`,
+      node: (
+        <CountUp value={stats?.total_revenue_xlm ?? 0} decimals={3} suffix=" XLM" />
+      ),
       tone: "var(--value)",
     },
     {
       icon: Database,
       label: "Indexed passages",
-      value: formatCount(stats?.indexed_vectors ?? 0),
+      node: <CountUp value={stats?.indexed_vectors ?? 0} />,
       tone: "var(--data)",
     },
     {
       icon: Gauge,
       label: "Mean latency",
-      value: stats?.avg_latency_ms ? formatDuration(stats.avg_latency_ms) : "—",
+      node: stats?.avg_latency_ms ? (
+        <CountUp value={stats.avg_latency_ms / 1000} decimals={2} suffix=" s" />
+      ) : (
+        <span>—</span>
+      ),
       tone: "var(--positive)",
     },
   ];
@@ -71,11 +77,11 @@ export function LivePulse() {
   return (
     <div className="mx-auto mt-14 max-w-3xl">
       <div className="panel edge-lit grid grid-cols-2 divide-[color:var(--line)] md:grid-cols-4 md:divide-x">
-        {items.map(({ icon: Icon, label, value, tone }) => (
+        {items.map(({ icon: Icon, label, node, tone }) => (
           <div key={label} className="px-4 py-5 text-center">
             <Icon size={15} className="mx-auto" style={{ color: tone }} />
             <p className="text-numeric mt-2.5 text-xl font-semibold tracking-tight text-[var(--text)]">
-              {failed ? "—" : value}
+              {failed ? "—" : node}
             </p>
             <p className="mt-1 text-[0.6875rem] text-[var(--text-muted)]">{label}</p>
           </div>

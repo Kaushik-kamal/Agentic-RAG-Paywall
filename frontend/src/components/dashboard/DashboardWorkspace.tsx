@@ -22,6 +22,7 @@ import { Badge, LiveDot } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, SectionHeader, StatTile } from "@/components/ui/Card";
 import { EmptyState, OfflineBanner, Skeleton } from "@/components/ui/Feedback";
+import { Purpose } from "@/components/ui/Purpose";
 import { ApiError, getAnalytics, getHealth, getStats, getTreasuryAccount } from "@/lib/api";
 import type { Analytics, Health, PlatformStats } from "@/lib/types";
 import {
@@ -119,7 +120,7 @@ export function DashboardWorkspace() {
         title="Analytics"
         description="Every number here comes from the API's own ledger and query log — nothing on this page is simulated."
         actions={
-          <div className="flex items-center gap-3">
+          <div className="demo-quiet flex items-center gap-3">
             {updatedAt ? (
               <span className="hidden text-xs text-[var(--text-faint)] sm:block">
                 updated {formatRelative(updatedAt.toISOString())}
@@ -139,10 +140,15 @@ export function DashboardWorkspace() {
         }
       />
 
+      <Purpose className="mt-4">
+        Real-time health of the AI economy — every figure from the ledger, none
+        simulated.
+      </Purpose>
+
       {offline ? <OfflineBanner className="mt-6" /> : null}
 
       {/* ── Headline metrics ──────────────────────────────────────────────── */}
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="stagger mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Answers delivered"
           value={formatCount(stats?.total_queries ?? 0)}

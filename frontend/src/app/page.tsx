@@ -14,11 +14,11 @@ import {
   Scale,
   ShieldCheck,
   Sparkles,
-  Store,
   Terminal,
   Timer,
 } from "lucide-react";
 
+import { StartDemoButton } from "@/components/demo/StartDemoButton";
 import { LivePulse } from "@/components/landing/LivePulse";
 import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
@@ -122,21 +122,19 @@ export default function LandingPage() {
             </p>
 
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <StartDemoButton size="lg" />
               <ButtonLink
                 href="/discover"
-                variant="primary"
                 size="lg"
                 iconRight={<ArrowRight size={16} />}
               >
-                Watch an agent discover
-              </ButtonLink>
-              <ButtonLink href="/marketplace" size="lg" icon={<Store size={15} />}>
-                Browse the marketplace
+                Explore it yourself
               </ButtonLink>
             </div>
 
             <p className="mt-4 text-xs text-[var(--text-faint)]">
-              Eleven live providers · three free credits on arrival · no wallet needed
+              30 seconds, entirely autonomous, using live data · or press{" "}
+              <kbd className="kbd">D</kbd> anywhere
             </p>
           </div>
 

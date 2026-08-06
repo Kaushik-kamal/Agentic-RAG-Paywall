@@ -29,6 +29,7 @@ import { Button } from "@/components/ui/Button";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { CodeBlock } from "@/components/ui/CodeBlock";
 import { OfflineBanner } from "@/components/ui/Feedback";
+import { Purpose } from "@/components/ui/Purpose";
 import { API_BASE, ApiError, getChallenge, verifyPayment } from "@/lib/api";
 import { streamAnswer } from "@/lib/stream";
 import type { Citation, PaymentChallenge, VerifyResult } from "@/lib/types";
@@ -259,6 +260,10 @@ export function ProtocolWorkspace() {
           </div>
         }
       />
+
+      <Purpose className="mt-4">
+        Secure micropayments between autonomous agents, settled on-chain in seconds.
+      </Purpose>
 
       {offline ? <OfflineBanner className="mt-6" /> : null}
 

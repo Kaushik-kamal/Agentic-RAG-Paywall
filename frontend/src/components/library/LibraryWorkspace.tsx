@@ -22,6 +22,7 @@ import { Badge, Chip } from "@/components/ui/Badge";
 import { Button, IconButton } from "@/components/ui/Button";
 import { Card, SectionHeader, StatTile } from "@/components/ui/Card";
 import { EmptyState, OfflineBanner, Skeleton } from "@/components/ui/Feedback";
+import { Purpose } from "@/components/ui/Purpose";
 import { ApiError, deleteDocument, listDocuments, uploadDocument } from "@/lib/api";
 import type { DocumentLibrary, KnowledgeDocument } from "@/lib/types";
 import { cn, formatBytes, formatCount, formatRelative } from "@/lib/utils";
@@ -202,9 +203,13 @@ export function LibraryWorkspace() {
         }
       />
 
+      <Purpose className="mt-4">
+        The knowledge each provider sells — parsed, chunked, embedded and scoped.
+      </Purpose>
+
       {offline ? <OfflineBanner className="mt-6" /> : null}
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <div className="stagger mt-6 grid gap-3 sm:grid-cols-3">
         <StatTile
           label="Documents"
           value={formatCount(library?.total_documents ?? 0)}

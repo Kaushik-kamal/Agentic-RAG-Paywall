@@ -26,6 +26,8 @@ import { Badge, Chip } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { EmptyState, OfflineBanner, Skeleton } from "@/components/ui/Feedback";
+import { Purpose } from "@/components/ui/Purpose";
+import { useDemo } from "@/components/demo/DemoProvider";
 import { ApiError, getAtlas, projectIntoAtlas } from "@/lib/api";
 import type { Atlas, AtlasPoint, AtlasProjection } from "@/lib/types";
 import { cn, formatDuration, truncate } from "@/lib/utils";
@@ -65,6 +67,7 @@ export function AtlasWorkspace() {
   const [focusedDocument, setFocusedDocument] = useState<string | null>(null);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const { atlasQuery } = useDemo();
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +117,19 @@ export function AtlasWorkspace() {
     [projecting],
   );
 
+  // Demo mode drives the atlas: when the director reaches the retrieval phase
+  // it publishes a query, and this projects it exactly as a visitor would.
+  useEffect(() => {
+    if (!atlasQuery || !atlas?.available) return;
+    const timer = setTimeout(() => {
+      setQuery(atlasQuery);
+      void project(atlasQuery);
+    }, 350);
+    return () => clearTimeout(timer);
+    // `project` changes on every render; depending on it would loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [atlasQuery, atlas?.available]);
+
   // Map normalised [-1, 1] coordinates into the SVG viewBox.
   const toView = useCallback(
     (value: number) => PAD + ((value + 1) / 2) * (VIEW - PAD * 2),
@@ -146,6 +162,11 @@ export function AtlasWorkspace() {
           ) : null
         }
       />
+
+      <Purpose className="mt-4">
+        Visualising the semantic relationships between documents and the queries that
+        retrieve them.
+      </Purpose>
 
       {offline ? <OfflineBanner className="mt-6" /> : null}
 

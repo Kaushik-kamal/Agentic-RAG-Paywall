@@ -423,6 +423,7 @@ export function ConsoleWorkspace() {
 
             <IconButton
               label="Conversation history"
+              className="demo-quiet"
               onClick={() => setHistoryOpen((value) => !value)}
               icon={<History size={16} />}
             />

@@ -203,6 +203,24 @@ npm run dev
 
 Open <http://localhost:3000>. You start with three free credits.
 
+### The 30-second version
+
+Press **`D`** anywhere, or click **Start demo**.
+
+Four agents are dispatched with questions from four different fields, discover the
+marketplace, evaluate every provider, settle micropayments with the ones they
+choose, and return cited answers — while the interface narrates each phase and the
+dashboard updates behind it. It ends on a summary card whose every figure was
+produced by live API calls during the run.
+
+The director is built so a live demo cannot stall: **the timeline never awaits the
+network.** Phases advance on wall-clock timers, real work lands whenever it lands,
+and a failed call marks one agent while the other three carry the story.
+
+See [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for a three-minute presentation
+script, including what to say, what each moment demonstrates, and what to do if
+something breaks on stage.
+
 ### 3 · Watch an agent pay for real
 
 ```bash
