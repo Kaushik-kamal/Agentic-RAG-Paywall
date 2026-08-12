@@ -26,27 +26,28 @@ from app.services.router_agent import Objective, RoutingDecision
 logger = logging.getLogger(__name__)
 
 
-def _debit(agent_id: str, credits: int) -> int:
-    """Charge the provider's price. Returns the remaining balance."""
-    balance = repo.get_credits(agent_id)
-    if balance < credits:
+def _debit(agent_id: str, credits: int, price_xlm: float | None = None) -> int:
+    """Charge the provider's price as one indivisible operation.
+
+    Either the full amount is taken or nothing is — the database enforces it,
+    so concurrent callers cannot overspend a balance and no caller can end up
+    partially charged. ``price_xlm`` records what the buyer actually paid, so
+    the agent's spend and the provider's revenue reconcile to the same figure.
+    """
+    remaining = repo.consume_credits(
+        agent_id, credits, reason="marketplace_call", spend_xlm=price_xlm
+    )
+    if remaining is None:
         raise InsufficientCreditsError(
             f"This provider charges {credits} credits per call; the agent holds "
-            f"{balance}. Settle another x402 payment to continue.",
-            details={"required": credits, "available": balance},
+            f"{repo.get_credits(agent_id)}. Settle another x402 payment to continue.",
+            details={"required": credits, "available": repo.get_credits(agent_id)},
         )
-    remaining = balance
-    for _ in range(credits):
-        result = repo.consume_credit(agent_id, reason="marketplace_call")
-        if result is None:
-            raise InsufficientCreditsError()
-        remaining = result
     return remaining
 
 
 def _refund(agent_id: str, credits: int) -> None:
-    for _ in range(credits):
-        repo.refund_credit(agent_id)
+    repo.refund_credits(agent_id, credits)
 
 
 def invoke(
@@ -58,7 +59,11 @@ def invoke(
 ) -> dict[str, Any]:
     """Call one provider and record the outcome against its reputation."""
     credits = provider["credits_per_call"]
-    remaining = _debit(agent_id, credits) if charge else repo.get_credits(agent_id)
+    remaining = (
+        _debit(agent_id, credits, provider["price_xlm"])
+        if charge
+        else repo.get_credits(agent_id)
+    )
 
     started = time.perf_counter()
     try:
@@ -188,7 +193,7 @@ def route_and_execute(
     }
 
     try:
-        remaining = _debit(agent_id, credits)
+        remaining = _debit(agent_id, credits, chosen["price_xlm"])
     except InsufficientCreditsError as exc:
         yield "error", {
             "code": exc.code,

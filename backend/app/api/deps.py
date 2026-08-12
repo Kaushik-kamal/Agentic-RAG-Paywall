@@ -85,18 +85,28 @@ def require_paid_agent(
 def require_admin(
     x_admin_key: Annotated[str | None, Header()] = None,
 ) -> bool:
-    """Guard write operations on the shared knowledge base.
+    """Guard mutation of the shared knowledge base. Fails closed.
 
-    When no key is configured (local development) the guard is open but every
-    call is logged, so it is obvious in the terminal. Production configuration
-    makes ``ADMIN_API_KEY`` mandatory — see ``Settings._harden_production``.
+    An absent or empty admin key is **never** treated as authenticated. With no
+    key configured the endpoint is refused outright unless a developer has
+    explicitly opted into ``ALLOW_INSECURE_ADMIN`` for local work — an option
+    production refuses to honour (see ``Settings._harden_production``).
     """
-    if not settings.admin_api_key:
-        logger.warning(
-            "Admin endpoint reached with no ADMIN_API_KEY configured — "
-            "set one before exposing this deployment."
+    if not settings.admin_configured:
+        if settings.allow_insecure_admin and settings.environment != "production":
+            logger.warning(
+                "Knowledge-base mutation allowed with NO admin key: "
+                "ALLOW_INSECURE_ADMIN is on. Never use this on a deployed instance."
+            )
+            return True
+        raise ForbiddenError(
+            "Knowledge-base changes require ADMIN_API_KEY to be configured. "
+            "Set it in backend/.env (and the matching value in "
+            "frontend/.env.local), or set ALLOW_INSECURE_ADMIN=true for local "
+            "work only.",
+            details={"missing_env": "ADMIN_API_KEY"},
         )
-        return True
+
     if not x_admin_key or not constant_time_equals(x_admin_key, settings.admin_api_key):
         raise ForbiddenError(
             "A valid X-Admin-Key header is required for knowledge-base changes."

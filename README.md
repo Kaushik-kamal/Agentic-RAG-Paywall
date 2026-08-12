@@ -59,16 +59,35 @@ Agent (knows nothing)
 Yes, in every way that matters to the demonstration — and the README says exactly
 where the seams are rather than letting a judge discover them.
 
-**Real:** eleven providers with **disjoint knowledge scopes**, independent prices
-(0.005–0.035 XLM), independent latency profiles, independent retrieval
-configuration, and reputations computed only from transactions that actually
-happened. Route a contract question to the clinical provider and it genuinely
-answers *"not in my sources"* — which is precisely why routing correctly is a real
-problem rather than a scripted animation.
+**What is genuinely real**
 
-**Shared:** they run on one deployment and settle into one treasury, attributed
-per provider. Nothing about the protocol assumes that — `POST /marketplace/providers`
-registers a third-party service that is rankable from its first request.
+- Eleven providers with **disjoint knowledge scopes**. Route a contract question to
+  the clinical provider and it genuinely answers *"not in my sources"* — which is
+  precisely why routing correctly is a real problem and not a scripted animation.
+- Independent prices (0.005–0.035 XLM), latency profiles, and retrieval
+  configuration per provider.
+- Reputations computed only from transactions that actually happened; nothing is
+  pre-seeded.
+- Real x402 settlement on the Stellar testnet, verifiable on a block explorer.
+- In the 30-second demo, **four separate agent identities** (`demo_legal`,
+  `demo_clinical`, `demo_engineering`, `demo_compliance`) each with their own
+  wallet, their own settlement, and their own rows in the dashboard.
+
+**What is shared, and we are not going to pretend otherwise**
+
+- All eleven providers **run on one deployment** and **settle into one treasury**,
+  attributed per provider in the ledger. They are *not* independently deployed
+  companies, and the marketplace is *not* decentralised.
+- Every provider in the launch cohort **was registered by us**. Nothing in the demo
+  demonstrates autonomous provider onboarding.
+- Nothing about the protocol requires either of those.
+  `POST /marketplace/providers` registers a third-party service that is rankable
+  from its first request, and separating deployments and treasuries is engineering
+  work, not a redesign.
+
+When the demo says *"zero human interventions"*, it means **zero human intervention
+in the transactions** — discovery, ranking, settlement and consumption. It does not
+claim the marketplace assembled itself.
 
 ---
 
@@ -145,17 +164,40 @@ That is the atomicity claim, proven rather than asserted.
 
 ---
 
-## Screenshots
+## See it in 30 seconds
 
-> Replace these placeholders with real captures before submitting.
+Start both servers (below), open the app, and press **`D`**.
 
-| Discovery — the agent choosing a provider it has never seen | Marketplace — eleven services publishing their terms |
-|---|---|
-| ![Discovery](docs/screenshots/discover.png) | ![Marketplace](docs/screenshots/marketplace.png) |
+Four agents — each with its own wallet — discover the marketplace, evaluate every
+provider, settle micropayments with the ones they choose, and return cited answers,
+while the interface narrates each phase. Screenshots go stale; this doesn't.
 
-| One click — a fleet transacting across the network | Corpus atlas — a query landing among its answers |
-|---|---|
-| ![Network demo](docs/screenshots/network-demo.png) | ![Atlas](docs/screenshots/atlas.png) |
+---
+
+## How MCP fits
+
+**MCP and this project solve different halves of the same problem, and they compose.**
+
+The Model Context Protocol standardises how an agent *connects to and uses* a tool
+or service. It is the integration layer, and it is the right one — but it assumes a
+developer already chose the servers. It has no notion of price, no settlement, no
+reputation, and no way to rank two servers that both claim the same capability.
+
+This project is the **commerce layer** that sits above that:
+
+| | MCP | Agent Discovery Network |
+|---|---|---|
+| Connect to a known service | ✅ | — |
+| Find a service you didn't know about | — | ✅ |
+| Rank competing services by capability | — | ✅ |
+| Publish and compare prices | — | ✅ |
+| Settle payment | — | ✅ |
+| Earned, auditable reputation | — | ✅ |
+
+An MCP server is a natural provider on this network: publish its capabilities and a
+price to the registry, and the routing agent can discover it, rank it against
+alternatives, and pay for it. **This does not replace MCP — it gives MCP servers a
+market.**
 
 ---
 
@@ -359,6 +401,22 @@ Full interactive docs at `/docs`. The essentials:
 `start` → `status` → `retrieval` → `token`\* → `follow_ups` → `done`,
 with a terminal `error` event (and an automatic refund) on failure.
 
+### Known limitation: retries are not idempotent
+
+`POST /marketplace/route` and `POST /rag/query` have **no idempotency key**. A
+client that retries after a network timeout — where the request actually succeeded
+but the response was lost — will be charged twice.
+
+This is stated rather than fixed because the safe fix touches the debit path, which
+is the one part of the system that must not regress before a demo. The design is
+settled and small: accept an `Idempotency-Key` header, store it against the
+resulting charge in the same transaction as the debit, and return the original
+response on a repeat. It is the same mechanism the payment layer already uses to
+block replays, applied one level up.
+
+Payments themselves **are** protected: a redeemed transaction hash is blocked by a
+`UNIQUE` constraint that survives a restart.
+
 ### Error shape
 
 Every error looks the same, so agents branch on `code` rather than parsing prose:
@@ -384,12 +442,17 @@ See [`.env.example`](.env.example) for the annotated list. The ones that matter:
 |----------|---------|-------|
 | `GEMINI_API_KEY` | — | **Required.** Embeddings and generation. |
 | `SECRET_KEY` | random per process | Signs access tokens. **Required and stable in production.** |
-| `ADMIN_API_KEY` | — | Guards knowledge-base writes. Required in production. |
+| `ADMIN_API_KEY` | — | Guards knowledge-base writes and provider registration. **Without it, those endpoints refuse every request.** Required in production. |
+| `ALLOW_INSECURE_ADMIN` | `false` | Local-only escape hatch to run admin endpoints with no key. Refused in production. |
 | `STELLAR_PUBLIC_KEY` | — | Treasury account. `scripts/setup_stellar.py` fills it in. |
 | `X402_PRICE_XLM` | `0.01` | Price of one payment. |
 | `X402_CREDITS_PER_PAYMENT` | `10` | Answers bought per payment. |
-| `X402_SANDBOX_MODE` | `true` | Accepts `sandbox_*` hashes. **Forced off when `ENVIRONMENT=production`.** |
+| `X402_SANDBOX_MODE` | **`false`** | Accepts `sandbox_*` hashes. **Off by default so an unconfigured deployment fails closed**; set `true` for local demos. Cannot be enabled in production. |
 | `ENVIRONMENT` | `development` | `production` enables the hardening validators. |
+
+**The defaults fail closed.** An instance that is deployed without configuration
+refuses admin writes and refuses sandbox settlement. Local development opts into
+both explicitly — see `.env.example`.
 
 ---
 

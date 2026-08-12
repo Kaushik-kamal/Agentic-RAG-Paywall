@@ -391,7 +391,8 @@ export function NetworkDemo({ onFinished }: { onFinished?: () => void }) {
               <strong>{distinct} different services</strong>, settled{" "}
               <strong>{formatXlm(spend, 4)} XLM</strong> in micropayments, and
               received answers averaging <strong>{avgConfidence}% confidence</strong> —
-              in {formatDuration(elapsed)}. Not one endpoint was configured in advance.
+              in {formatDuration(elapsed)}. No endpoint was configured in advance, and
+              no human was in the loop for any of these transactions.
             </span>
           </p>
         </div>

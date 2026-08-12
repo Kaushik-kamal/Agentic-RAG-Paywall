@@ -314,11 +314,16 @@ export function MarketplaceWorkspace() {
         </Card>
       ) : null}
 
-      <p className="mt-6 text-center text-xs leading-relaxed text-[var(--text-faint)]">
-        Providers share infrastructure in this deployment but own{" "}
-        <strong className="text-[var(--text-muted)]">disjoint knowledge scopes</strong>,
-        set their own prices, and are scored independently — routing to the wrong one
-        really does return &ldquo;not in my sources&rdquo;.
+      <p className="mx-auto mt-6 max-w-3xl text-center text-xs leading-relaxed text-[var(--text-faint)]">
+        <strong className="text-[var(--text-muted)]">How this deployment works.</strong>{" "}
+        These providers run on shared infrastructure and settle into one treasury,
+        attributed per provider — they are not independently deployed companies. What
+        is genuinely independent: each owns a{" "}
+        <strong className="text-[var(--text-muted)]">disjoint knowledge scope</strong>,
+        sets its own price and latency, and earns its own reputation from real
+        traffic. Route a contract question to the clinical provider and it really does
+        answer &ldquo;not in my sources&rdquo;. The registry is open, so a
+        third-party service can list here and be ranked from its first request.
       </p>
     </div>
   );

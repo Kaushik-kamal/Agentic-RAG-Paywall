@@ -145,27 +145,57 @@ def grant_credits(
 def consume_credit(
     agent_id: str, *, reason: str = "rag_query", reference_id: str | None = None
 ) -> int | None:
-    """Atomically debit one credit.
+    """Atomically debit exactly one credit."""
+    return consume_credits(agent_id, 1, reason=reason, reference_id=reference_id)
 
-    Returns the remaining balance, or ``None`` when the agent had none —
-    the conditional UPDATE makes this safe against concurrent queries.
+
+def consume_credits(
+    agent_id: str,
+    amount: int,
+    *,
+    reason: str = "rag_query",
+    reference_id: str | None = None,
+    spend_xlm: float | None = None,
+) -> int | None:
+    """Atomically debit ``amount`` credits, all or nothing.
+
+    The guard lives in the ``WHERE`` clause of a single UPDATE inside a single
+    transaction, so the database — not the application — enforces the
+    invariant. Debiting in a Python loop was the earlier implementation and it
+    was wrong: two concurrent callers could each pass a preliminary balance
+    check, interleave their updates, and leave one of them partially charged
+    with no way to unwind. There is no partial state to unwind here, because
+    either the row matched ``credits >= amount`` and the whole amount moved, or
+    nothing happened at all.
     """
+    if amount <= 0:
+        raise ValueError("Credit debit amount must be positive")
+
     with transaction() as conn:
         cursor = conn.execute(
-            "UPDATE agents SET credits = credits - 1 WHERE agent_id = ? AND credits > 0",
-            (agent_id,),
+            """UPDATE agents SET credits = credits - ?
+               WHERE agent_id = ? AND credits >= ?""",
+            (amount, agent_id, amount),
         )
         if cursor.rowcount == 0:
             return None
+
         row = conn.execute(
             "SELECT credits FROM agents WHERE agent_id = ?", (agent_id,)
         ).fetchone()
         balance = int(row["credits"]) if row else 0
+
         conn.execute(
             """INSERT INTO credit_ledger
                (agent_id, delta, balance_after, reason, reference_id, created_at)
-               VALUES (?, -1, ?, ?, ?, ?)""",
-            (agent_id, balance, reason, reference_id, utcnow()),
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (agent_id, -amount, balance, reason, reference_id, utcnow()),
+        )
+        # Record what the buyer was actually charged. A provider's listed price
+        # need not equal credits × the base price, so defaulting to the latter
+        # made the agent's spend disagree with the provider's revenue.
+        charged = (
+            settings.x402_price_xlm * amount if spend_xlm is None else spend_xlm
         )
         conn.execute(
             """UPDATE agents
@@ -173,7 +203,7 @@ def consume_credit(
                    total_spent_xlm = total_spent_xlm + ?,
                    last_seen_at = ?
                WHERE agent_id = ?""",
-            (settings.x402_price_xlm, utcnow(), agent_id),
+            (charged, utcnow(), agent_id),
         )
     return balance
 
@@ -182,6 +212,17 @@ def refund_credit(agent_id: str, *, reference_id: str | None = None) -> int:
     """Give the credit back when generation fails — never charge for an error."""
     return grant_credits(
         agent_id, 1, reason="failed_query_refund", reference_id=reference_id
+    )
+
+
+def refund_credits(
+    agent_id: str, amount: int, *, reference_id: str | None = None
+) -> int:
+    """Return a multi-credit charge in one ledger entry."""
+    if amount <= 0:
+        return get_credits(agent_id)
+    return grant_credits(
+        agent_id, amount, reason="failed_query_refund", reference_id=reference_id
     )
 
 

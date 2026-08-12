@@ -109,25 +109,37 @@ const PHASES: Phase[] = [
 
 const TOTAL_MS = PHASES.reduce((sum, phase) => sum + phase.ms, 0);
 
-/** One task per field, so a correct network fans out across the marketplace. */
+/** One task per field, so a correct network fans out across the marketplace.
+ *
+ * Each agent has its **own persistent id**, which means its own wallet, its own
+ * credit balance, its own x402 settlement and its own rows in the dashboard.
+ * They are four distinct buyers, not four labels on one account — a judge who
+ * inspects the activity feed sees four different agent ids transacting. */
 const CAST = [
   {
+    agentId: "demo_legal",
     role: "Legal researcher",
     task: "Can I exclude liability for death caused by negligence?",
   },
   {
+    agentId: "demo_clinical",
     role: "Clinical analyst",
     task: "What is the number needed to treat, and why does it matter?",
   },
   {
+    agentId: "demo_engineering",
     role: "Platform engineer",
     task: "How does Raft elect a leader after a partition?",
   },
   {
+    agentId: "demo_compliance",
     role: "Compliance officer",
     task: "How long do I have to report a personal data breach?",
   },
 ] as const;
+
+/** Enough for the priciest provider on the network, with headroom. */
+const CREDITS_PER_DEMO_AGENT = 10;
 
 export type AgentStatus =
   | "idle"
@@ -141,6 +153,8 @@ export type AgentStatus =
 
 export interface DemoAgent {
   id: string;
+  /** The agent's own registered identity on the network. */
+  agentId: string;
   role: string;
   task: string;
   status: AgentStatus;
@@ -153,6 +167,8 @@ export interface DemoAgent {
   confidence?: number;
   chars: number;
   latencyMs?: number;
+  /** This agent's own remaining balance after settling. */
+  creditsLeft?: number;
   error?: string;
 }
 
@@ -168,6 +184,9 @@ export interface DemoMetrics {
 
 interface DemoValue {
   active: boolean;
+  /** Set when the network cannot support a run — shown instead of starting one. */
+  setupNotice: string | null;
+  dismissSetupNotice: () => void;
   phase: Phase;
   phaseIndex: number;
   phases: Phase[];
@@ -197,8 +216,9 @@ const EMPTY_METRICS: DemoMetrics = {
 export function DemoProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { agentId, credits, getToken, purchaseCredits, refresh, setCredits } =
-    useSession();
+  // Demo agents fund and authenticate themselves, so the director needs nothing
+  // from the browser's own wallet beyond a refresh once the run has finished.
+  const { refresh } = useSession();
 
   const [active, setActive] = useState(false);
   const [phaseIndex, setPhaseIndex] = useState(0);
@@ -206,7 +226,10 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const [agents, setAgents] = useState<DemoAgent[]>([]);
   const [metrics, setMetrics] = useState<DemoMetrics>(EMPTY_METRICS);
   const [atlasQuery, setAtlasQuery] = useState<string | null>(null);
+  const [setupNotice, setSetupNotice] = useState<string | null>(null);
 
+  /** One access token per demo agent — they do not share credentials. */
+  const tokensRef = useRef(new Map<string, string>());
   const abortRef = useRef<AbortController | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
   const tickerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -241,36 +264,49 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
 
   // ── Background work, none of which the timeline waits on ──────────────────
 
+  /** Fund each demo agent's own wallet through the real x402 flow.
+   *
+   * Every agent settles its own payment and receives its own access token, so
+   * the transactions that follow are genuinely four separate buyers. Failures
+   * are per-agent: one unfunded wallet does not stop the other three. */
   const warmUp = useCallback(
-    async (runId: number) => {
-      try {
-        const [stats] = await Promise.all([
-          api.getNetworkStats().catch(() => null),
-          api.listProviders().catch(() => null),
-        ]);
-        if (runId !== runIdRef.current) return;
-        if (stats) {
-          setMetrics((current) => ({
-            ...current,
-            providersOnline: stats.providers_online,
-          }));
-        }
-      } catch {
-        /* the demo continues without warm stats */
-      }
+    async (runId: number, roster: DemoAgent[]) => {
+      api
+        .getNetworkStats()
+        .then((stats) => {
+          if (runId === runIdRef.current) {
+            setMetrics((current) => ({
+              ...current,
+              providersOnline: stats.providers_online,
+            }));
+          }
+        })
+        .catch(() => undefined);
 
-      // Four routed calls cost up to ~11 credits. Top up so the demo cannot
-      // stall on an empty balance halfway through.
-      try {
-        if (credits < 24) {
-          const result = await purchaseCredits({ mode: "sandbox" });
-          if (runId === runIdRef.current) setCredits(result.credits_remaining);
-        }
-      } catch {
-        /* if settlement fails the routes will simply report insufficient credit */
-      }
+      await Promise.all(
+        roster.map(async (agent) => {
+          try {
+            const balance = await api.getBalance(agent.agentId);
+            if (balance.credits >= CREDITS_PER_DEMO_AGENT) {
+              const minted = await api.mintToken(agent.agentId);
+              tokensRef.current.set(agent.agentId, minted.access_token);
+              return;
+            }
+            const challenge = await api.getChallenge(agent.agentId);
+            const settled = await api.verifyPayment({
+              transaction_hash: `sandbox_${Date.now().toString(36)}_${agent.agentId}`,
+              agent_id: agent.agentId,
+              challenge_id: challenge.challenge_id,
+            });
+            tokensRef.current.set(agent.agentId, settled.access_token);
+          } catch {
+            // Left unfunded: this agent will report insufficient credit and
+            // the run continues with the others.
+          }
+        }),
+      );
     },
-    [credits, purchaseCredits, setCredits],
+    [],
   );
 
   /** Free ranking pass — gives real evaluation counts before anyone pays. */
@@ -305,24 +341,18 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
     [patch],
   );
 
-  /** The paid loop: settle, invoke, stream, record. */
+  /** The paid loop: each agent settles and invokes on its own credentials. */
   const transact = useCallback(
     async (runId: number, roster: DemoAgent[], signal: AbortSignal) => {
-      if (!agentId) return;
-      let token: string;
-      try {
-        token = await getToken();
-      } catch {
-        roster.forEach((agent) =>
-          patch(agent.id, { status: "failed", error: "no access token" }),
-        );
-        return;
-      }
-
       await Promise.all(
-        roster.map((agent) =>
-          routeRequest(
-            { query: agent.task, agent_id: agentId, objective: "balanced" },
+        roster.map((agent) => {
+          const token = tokensRef.current.get(agent.agentId);
+          if (!token) {
+            patch(agent.id, { status: "failed", error: "wallet not funded" });
+            return Promise.resolve();
+          }
+          return routeRequest(
+            { query: agent.task, agent_id: agent.agentId, objective: "balanced" },
             token,
             {
               onSelected: (payload) =>
@@ -336,8 +366,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
                 }),
               onPayment: (payload) => {
                 if (runId !== runIdRef.current || payload.stage !== "settled") return;
-                patch(agent.id, { status: "paid" });
-                setCredits(payload.credits_remaining ?? 0);
+                // The balance belongs to this demo agent, not to the browser's
+                // own wallet — do not overwrite the session's credit display.
+                patch(agent.id, {
+                  status: "paid",
+                  creditsLeft: payload.credits_remaining,
+                });
                 setMetrics((current) => ({
                   ...current,
                   payments: current.payments + 1,
@@ -362,8 +396,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
                   status: "done",
                   confidence: payload.confidence.percent,
                   latencyMs: payload.total_ms,
+                  creditsLeft: payload.credits_remaining,
                 });
-                setCredits(payload.credits_remaining);
                 setMetrics((current) => {
                   const transactions = current.transactions + 1;
                   return {
@@ -385,25 +419,47 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
             if (runId === runIdRef.current) {
               patch(agent.id, { status: "failed", error: "provider unreachable" });
             }
-          }),
-        ),
+          });
+        }),
       );
     },
-    [agentId, getToken, patch, setCredits],
+    [patch],
   );
 
   // ── The director ──────────────────────────────────────────────────────────
 
-  const start = useCallback(() => {
-    if (active || !agentId) return;
+  const start = useCallback(async () => {
+    if (active) return;
+    setSetupNotice(null);
+
+    // Refuse to run a demonstration the network cannot actually support.
+    // A failed run that looks scripted is worse than an honest setup message.
+    try {
+      const stats = await api.getNetworkStats();
+      if (stats.providers_online === 0) {
+        setSetupNotice(
+          "The marketplace has no providers listed yet. Seed it first:\n\n" +
+            "cd backend\npython scripts/seed_demo.py\npython scripts/seed_marketplace.py",
+        );
+        return;
+      }
+    } catch {
+      setSetupNotice(
+        "The API is unreachable, so there is nothing real to demonstrate. " +
+          "Start it first:\n\ncd backend\nuvicorn app.main:app --reload --port 8000",
+      );
+      return;
+    }
 
     runIdRef.current += 1;
     const runId = runIdRef.current;
     const controller = new AbortController();
     abortRef.current = controller;
+    tokensRef.current.clear();
 
     const roster: DemoAgent[] = CAST.map((entry, index) => ({
       id: `demo-${runId}-${index}`,
+      agentId: entry.agentId,
       role: entry.role,
       task: entry.task,
       status: "idle",
@@ -439,7 +495,7 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
 
           switch (phase.id) {
             case "boot":
-              void warmUp(runId);
+              void warmUp(runId, roster);
               break;
             case "agents":
               roster.forEach((agent, position) =>
@@ -482,19 +538,12 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
         void refresh();
       }, offset),
     );
-  }, [
-    active,
-    agentId,
-    clearTimers,
-    evaluate,
-    patch,
-    refresh,
-    router,
-    transact,
-    warmUp,
-  ]);
+  }, [active, clearTimers, evaluate, patch, refresh, router, transact, warmUp]);
 
-  const toggle = useCallback(() => (active ? stop() : start()), [active, start, stop]);
+  const toggle = useCallback(() => {
+    if (active) stop();
+    else void start();
+  }, [active, start, stop]);
 
   // ── Shortcuts ─────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -532,6 +581,8 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<DemoValue>(
     () => ({
       active,
+      setupNotice,
+      dismissSetupNotice: () => setSetupNotice(null),
       phase: PHASES[phaseIndex],
       phaseIndex,
       phases: PHASES,
@@ -545,7 +596,18 @@ export function DemoProvider({ children }: { children: React.ReactNode }) {
       stop,
       toggle,
     }),
-    [active, agents, atlasQuery, elapsedMs, metrics, phaseIndex, start, stop, toggle],
+    [
+      active,
+      agents,
+      atlasQuery,
+      elapsedMs,
+      metrics,
+      phaseIndex,
+      setupNotice,
+      start,
+      stop,
+      toggle,
+    ],
   );
 
   return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>;

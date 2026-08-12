@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     # ── Security ─────────────────────────────────────────────────────────────
     secret_key: str = ""
     admin_api_key: str = ""
+    #: Opt-in escape hatch for local work with no admin key configured. It is
+    #: refused outright in production — knowledge-base mutation must never be
+    #: reachable without a credential on a deployed instance.
+    allow_insecure_admin: bool = False
     access_token_expire_minutes: int = Field(default=60, ge=1, le=1440)
     cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
@@ -98,9 +102,11 @@ class Settings(BaseSettings):
     x402_challenge_ttl_seconds: int = Field(default=300, ge=30, le=3600)
     x402_free_credits: int = Field(default=3, ge=0, le=100)
     #: Accept ``sandbox_*`` transaction hashes without touching the chain.
-    #: Enabled by default in development so the demo runs with zero setup,
-    #: force-disabled in production by the validator below.
-    x402_sandbox_mode: bool = True
+    #: **Off by default and opt-in**: a deployment that forgets to configure
+    #: this fails closed rather than letting anyone mint free credits. Local
+    #: development sets ``X402_SANDBOX_MODE=true`` explicitly, and production
+    #: cannot enable it at all — see the validator below.
+    x402_sandbox_mode: bool = False
 
     # ── Pricing display ──────────────────────────────────────────────────────
     xlm_usd_rate: float = Field(default=0.11, gt=0)
@@ -126,8 +132,11 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _harden_production(self) -> Settings:
         if self.environment == "production":
-            # Sandbox payments would let anyone mint credits for free.
+            # Sandbox payments would let anyone mint credits for free, and an
+            # open admin surface would let anyone delete the knowledge base.
+            # Both are forced shut regardless of what the environment asks for.
             object.__setattr__(self, "x402_sandbox_mode", False)
+            object.__setattr__(self, "allow_insecure_admin", False)
             object.__setattr__(self, "debug", False)
             if not self.stellar_public_key:
                 raise ValueError(
@@ -135,7 +144,9 @@ class Settings(BaseSettings):
                 )
             if not self.admin_api_key:
                 raise ValueError(
-                    "ADMIN_API_KEY is required when ENVIRONMENT=production"
+                    "ADMIN_API_KEY is required when ENVIRONMENT=production. "
+                    "Generate one with: "
+                    'python -c "import secrets; print(secrets.token_urlsafe(24))"'
                 )
         if self.chunk_overlap >= self.chunk_size:
             raise ValueError("CHUNK_OVERLAP must be smaller than CHUNK_SIZE")
@@ -154,6 +165,11 @@ class Settings(BaseSettings):
     @property
     def gemini_enabled(self) -> bool:
         return bool(self.gemini_api_key.strip())
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def admin_configured(self) -> bool:
+        return bool(self.admin_api_key.strip())
 
     @computed_field  # type: ignore[prop-decorator]
     @property

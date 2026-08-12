@@ -15,6 +15,7 @@ import {
   Layers,
   Network,
   Sparkles,
+  Terminal,
   X,
   XCircle,
 } from "lucide-react";
@@ -37,6 +38,8 @@ export function DemoOverlay() {
     agents,
     metrics,
     stop,
+    setupNotice,
+    dismissSetupNotice,
   } = useDemo();
 
   const [booting, setBooting] = useState(false);
@@ -52,6 +55,36 @@ export function DemoOverlay() {
       setBooting(false);
     };
   }, [active]);
+
+  // A demo the network cannot support is not run at all. Saying so plainly
+  // beats playing a sequence of failures that looks like a scripted mock.
+  if (setupNotice) {
+    return (
+      <div className="animate-fade fixed inset-0 z-[95] grid place-items-center bg-[var(--canvas)]/90 p-4 backdrop-blur-md">
+        <div className="panel-raised animate-pop w-full max-w-md p-6">
+          <span className="grid h-11 w-11 place-items-center rounded-[var(--radius)] border border-[color:var(--value)]/30 bg-[var(--value-soft)] text-[var(--value)]">
+            <Terminal size={18} />
+          </span>
+          <h2 className="mt-4 text-heading">Set up the network first</h2>
+          <p className="mt-2 text-sm leading-relaxed text-[var(--text-muted)]">
+            {setupNotice.split("\n\n")[0]}
+          </p>
+          {setupNotice.includes("\n\n") ? (
+            <pre className="mono mt-4 overflow-x-auto rounded-[var(--radius)] border border-[color:var(--line)] bg-[var(--surface)] p-3 text-[var(--data)]">
+              {setupNotice.split("\n\n").slice(1).join("\n\n")}
+            </pre>
+          ) : null}
+          <button
+            type="button"
+            onClick={dismissSetupNotice}
+            className="btn btn-secondary mt-5 w-full"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (!active) return null;
 
@@ -242,16 +275,27 @@ export function DemoOverlay() {
                   label="Knowledge transactions"
                   tone="var(--positive)"
                 />
-                <Line value={0} label="Human interventions" tone="var(--text-muted)" />
+                <Line
+                  value={0}
+                  label="Human interventions in the transactions"
+                  tone="var(--text-muted)"
+                />
               </dl>
 
               {succeeded.length ? (
                 <p className="mt-6 text-xs leading-relaxed text-[var(--text-muted)]">
-                  {new Set(succeeded.map((a) => a.provider)).size} different providers
-                  chosen · {Math.round(metrics.avgConfidence)}% mean confidence ·{" "}
-                  {formatDuration(totalMs)} end to end
+                  {new Set(succeeded.map((a) => a.agentId)).size} distinct agent
+                  wallets · {new Set(succeeded.map((a) => a.provider)).size} different
+                  providers chosen · {Math.round(metrics.avgConfidence)}% mean
+                  confidence · {formatDuration(totalMs)} end to end
                 </p>
               ) : null}
+
+              <p className="mt-3 text-[0.6875rem] leading-relaxed text-[var(--text-faint)]">
+                Discovery, selection, settlement and consumption ran without a human
+                in the loop. The providers themselves were listed by us, and share
+                this deployment.
+              </p>
 
               <button
                 type="button"
@@ -357,8 +401,15 @@ function AgentRow({ agent }: { agent: DemoAgent }) {
       </span>
 
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[0.6875rem] font-medium text-[var(--text)]">
-          {agent.role}
+        <span className="flex items-baseline gap-1.5">
+          <span className="truncate text-[0.6875rem] font-medium text-[var(--text)]">
+            {agent.role}
+          </span>
+          {/* The agent's real network identity, so the panel and the dashboard
+              can be checked against each other. */}
+          <span className="mono shrink-0 text-[0.5625rem] text-[var(--text-faint)]">
+            {agent.agentId}
+          </span>
         </span>
         <span
           className={cn(
