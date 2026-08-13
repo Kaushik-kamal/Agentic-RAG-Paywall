@@ -1,121 +1,72 @@
-# Action required: personal document in published Git history
+# Resolved: personal document purged from Git history
 
-**Status: unresolved. Requires your decision — it cannot be fixed automatically.**
+**Status: resolved on 2026-08-13 by a history rewrite and force push.**
+One residual step is outside this repository's control — see the end.
 
 ## What was found
 
-A CV PDF (149 KB, containing a real person's name) was committed in the very first
-commit of this repository.
+A CV PDF (146 KB, containing a real person's name) was committed in the very
+first commit of this repository and later deleted from the tree. Deleting it was
+not sufficient: the blob stayed fetchable at the original commit SHA, and the
+repository is public.
 
 | | |
 |---|---|
 | Path | `backend/data/uploads/CV_<name>.pdf` |
+| Blob | `9c460d9` |
 | Introduced in | `9be4d25` — *"Initial commit"* |
-| Removed from the tree in | `3378b26` |
-| In the working tree today | **No** |
-| Tracked in `HEAD` today | **No** |
-| Present in Git history | **Yes** |
-| **Present on the GitHub remote** | **Yes** |
+| Present anywhere today | **No** — purged from every commit, local and remote |
 
-The contents were never opened or logged during this audit — only the path,
-size and commit metadata.
+The contents were never opened or logged during the audit — only the path, size
+and commit metadata.
 
-## Why deleting it was not enough
+## What was done
 
-`origin/main` currently points at `9be4d25`, the commit that *contains* the file.
-Every later commit — including the one that deletes it — is still local and
-unpushed.
+A single `git filter-repo` pass, prepared and verified on a throwaway clone
+before anything was published, removed two things at once:
 
-**The file is therefore reachable on GitHub right now**, at:
+1. The CV blob from every commit.
+2. Seven `Co-Authored-By` trailers naming an AI assistant, which GitHub was
+   rendering as a second contributor on those commits.
+
+Nothing else was touched. The verification that matters is that the resulting
+tree came out **byte-identical** to the one before the rewrite —
+`661951ddbcd12b040dbc7aa5bf5b5ce53cf92be3` on both sides — so no source file,
+author, email, date or commit subject changed. All ten commits survived; only
+their SHAs moved, which is unavoidable when history is rewritten.
+
+`main` went from `b0f205e` to `2875560` via
+`git push --force-with-lease`, with the lease pinned to the expected old tip so
+the push would abort rather than clobber any concurrent work.
+
+Confirmed afterwards from a fresh independent clone of the remote: no CV path,
+no `backend/data/uploads/`, no PDF of any kind, blob `9c460d9` absent from the
+object store, zero `Co-Authored-By` trailers, and a single author and committer
+across all ten commits.
+
+## The part that is not fixed by a force push
+
+**Anyone who cloned or forked before 2026-08-13 still has the blob.** Nothing
+done to this repository reaches their copy.
+
+**GitHub may still serve the old commit by direct SHA.** Rewriting history
+leaves the previous objects unreferenced rather than deleted, and GitHub can
+keep serving cached views of them for some time:
 
 ```
-https://github.com/Kaushik-kamal/Agentic-RAG-Paywall/blob/9be4d25/backend/data/uploads/...
+https://github.com/Kaushik-kamal/Agentic-RAG-Paywall/commit/9be4d25
 ```
 
-If the repository is public, treat this as a live disclosure of someone else's
-personal document.
+If that URL still resolves and the exposure matters, ask GitHub Support to purge
+the cached views. Deleting and recreating the repository is the only immediate,
+self-service alternative — it was deliberately not done here, to preserve the
+repository URL.
 
-## What has to happen
+## Also worth doing
 
-Removing a file from history rewrites every commit after it, which changes their
-SHAs. Publishing that rewrite **requires a force push** (`--force-with-lease`).
-That is irreversible and would break any clone or fork, so it is deliberately left
-to you.
-
----
-
-### Option A — delete and recreate the remote *(recommended)*
-
-This is the strongest guarantee, and it is unusually cheap here because **only one
-commit has been pushed**, and it is the bad one. Everything of value is local.
-
-1. Delete the repository on GitHub: *Settings → Danger Zone → Delete this repository*.
-2. Recreate an empty repository with the same name.
-3. Push the local history, which no longer contains the file in `HEAD`:
-
-```bash
-cd "C:/Users/Kamal Sharma/OneDrive/Agentic-RAG-Paywall"
-git remote set-url origin https://github.com/Kaushik-kamal/Agentic-RAG-Paywall.git
-git push -u origin main
-```
-
-⚠️ The blob is still in your **local** history after this. To remove it there too,
-also run Option B before pushing.
-
-**Why this is recommended:** a force push leaves the old blob reachable on GitHub
-by direct SHA until their garbage collection runs, and unreferenced objects can
-persist for a long time. Deleting the repository removes it immediately.
-
----
-
-### Option B — rewrite history with `git filter-repo`
-
-Use this to purge the blob from your local history as well.
-
-```bash
-pip install git-filter-repo
-
-cd "C:/Users/Kamal Sharma/OneDrive/Agentic-RAG-Paywall"
-
-# 1. Back up first — this rewrites every commit.
-git bundle create ../argp-backup-$(date +%Y%m%d).bundle --all
-
-# 2. Remove the file from every commit in every branch.
-git filter-repo --invert-paths --path-glob 'backend/data/uploads/*.pdf' --force
-
-# 3. Confirm it is gone (expect no output).
-git log --all --pretty=format: --name-only | sort -u | grep -i '\.pdf$'
-
-# 4. filter-repo drops the remote by design. Re-add it.
-git remote add origin https://github.com/Kaushik-kamal/Agentic-RAG-Paywall.git
-```
-
-Then either delete/recreate the remote (Option A, step 1–3), **or** force-push:
-
-```bash
-git push --force-with-lease origin main
-```
-
-⚠️ **This is a force push.** It rewrites published history. Anyone who has cloned or
-forked the repository keeps the old objects, and GitHub may serve the old blob by
-direct SHA until it garbage-collects. If the repository is public and the exposure
-matters, use Option A and, if you want belt and braces, ask GitHub Support to purge
-cached views.
-
----
-
-### Also worth doing
-
-- Tell the person whose CV it is. It is their document, and if the repo was public
-  they should know.
-- `.gitignore` now excludes `backend/data/uploads/`, so this cannot recur.
-- No other personal documents were found in history — the only non-source paths
-  are `.env.example`, `.gitignore`, `LICENSE`, `README.md` and `docker-compose.yml`.
-
----
-
-### If you are demoing before you fix this
-
-The demo does not touch this file and nothing in the product references it. The
-risk is reputational and to a third party, not operational. **Fix it before the
-repository link is shared with judges.**
+- **Tell the person whose CV it is.** It is their document, it was public for a
+  period, and they should know regardless of the cleanup.
+- `.gitignore` excludes `backend/data/uploads/`, so this cannot recur.
+- No other personal documents or secrets exist in history. The full-history
+  audit found no `.env`, `.pem`, `.key`, `id_rsa`, or key-shaped strings in any
+  revision, and no PDF other than the one removed.
