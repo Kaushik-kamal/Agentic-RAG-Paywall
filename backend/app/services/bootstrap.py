@@ -143,11 +143,27 @@ def _run() -> None:
         _register(_provider_scopes())
 
         providers = len(registry.list_providers())
+        passages = vector_store.count()
         elapsed = round(time.time() - started, 1)
-        _set("ready", f"{providers} providers, {vector_store.count()} passages")
+
+        # Providers register even when their corpus is missing, so a provider
+        # count alone would report success for an instance that can retrieve
+        # nothing. An empty index after a seed run means the corpora never made
+        # it into the image — say so rather than looking healthy and answering
+        # nothing.
+        if passages == 0:
+            _set("failed", "seeded 0 passages — corpora missing from the image")
+            logger.error(
+                "Bootstrap registered %d providers but indexed no passages. "
+                "Check that data/demo_corpus and data/marketplace_corpus are "
+                "present in the container.", providers,
+            )
+            return
+
+        _set("ready", f"{providers} providers, {passages} passages")
         logger.info(
             "Bootstrap seeding complete in %ss — %d providers, %d passages",
-            elapsed, providers, vector_store.count(),
+            elapsed, providers, passages,
         )
     except Exception:
         logger.exception("Bootstrap seeding failed")

@@ -13,4 +13,13 @@ data/*.db-wal
 .env
 .env.*
 tests/
-*.md
+
+# Documentation only. Scoped to the context root on purpose: the seed corpora
+# under data/ are Markdown too, and AUTO_SEED cannot rebuild the network
+# without them. A bare `*.md` relies on `*` not crossing a `/` to spare them —
+# true under Go's filepath.Match, but far too subtle to rest a deploy on.
+/*.md
+
+# Belt and braces: never exclude the corpora, whatever is added above.
+!data/demo_corpus/
+!data/marketplace_corpus/
