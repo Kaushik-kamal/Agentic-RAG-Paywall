@@ -10,7 +10,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.core.config import settings
 from app.db import repository as repo
-from app.services import embeddings, vector_store
+from app.services import bootstrap, embeddings, vector_store
 from app.services.rag_service import rag_service
 from app.services.stellar_service import stellar_service
 
@@ -84,6 +84,10 @@ async def health() -> dict[str, Any]:
         "uptime_seconds": int(time.time() - _STARTED_AT),
         "components": components,
         "degraded": degraded,
+        # Deliberately outside `components`: a cold instance still filling its
+        # index is alive and serving. Reporting it as degraded would make the
+        # host's health check fail the deploy.
+        "bootstrap": bootstrap.status(),
     }
 
 

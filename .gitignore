@@ -35,6 +35,9 @@ dist/
 .next-dev.log
 .turbo/
 
+# Local link to the hosting project (org/project ids, pulled env)
+.vercel/
+
 # ── Editors & OS ──────────────────────────────────────────────────────────────
 .vscode/
 .idea/

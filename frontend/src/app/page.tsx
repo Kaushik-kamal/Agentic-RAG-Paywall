@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ButtonLink } from "@/components/ui/Button";
 import { Card, SectionHeader } from "@/components/ui/Card";
 import { CodeBlock } from "@/components/ui/CodeBlock";
+import { API_BASE } from "@/lib/api";
 
 const CAPABILITIES = [
   {
@@ -191,7 +192,7 @@ export default function LandingPage() {
           <CodeBlock
             filename="the wire"
             maxHeight="30rem"
-            code={`$ curl -X POST localhost:8000/api/v1/rag/query \\
+            code={`$ curl -X POST ${API_BASE}/rag/query \\
        -d '{"query":"Why does the memo matter?",
             "agent_id":"agent_researcher"}'
 

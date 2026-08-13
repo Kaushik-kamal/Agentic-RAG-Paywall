@@ -38,6 +38,27 @@ export const API_BASE = (
 
 export const API_ORIGIN = API_BASE.replace(/\/api\/v\d+$/, "");
 
+const LOOPBACK = /^(localhost|127\.0\.0\.1|\[::1\])$/;
+
+/**
+ * True when the page is served from a real domain but the API URL still points
+ * at a laptop — the signature of a deploy that shipped without
+ * NEXT_PUBLIC_API_URL. Every request would then be aimed at the *visitor's* own
+ * machine, which fails as an opaque network error on every panel at once. Worth
+ * saying out loud rather than rendering a site full of empty states.
+ */
+export function apiPointsAtLocalhost(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return (
+      LOOPBACK.test(new URL(API_BASE).hostname) &&
+      !LOOPBACK.test(window.location.hostname)
+    );
+  } catch {
+    return false;
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     readonly status: number,

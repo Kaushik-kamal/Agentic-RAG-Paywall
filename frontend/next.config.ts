@@ -5,8 +5,9 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
 
-  // Emits a self-contained server bundle for the Docker runtime stage.
-  output: "standalone",
+  // Self-contained server bundle for the Docker runtime stage. Vercel builds
+  // its own output format, so the option is dropped there.
+  output: process.env.VERCEL ? undefined : "standalone",
 
   // Pin the workspace root so Turbopack does not walk up and find an unrelated
   // lockfile in a parent directory.

@@ -6,6 +6,7 @@ import logging
 import secrets
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
+from typing import Any
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -19,7 +20,7 @@ from app.core.errors import RateLimitedError, register_exception_handlers
 from app.core.logging import configure_logging, request_id_ctx
 from app.core.rate_limit import global_limiter
 from app.db.database import close_db, init_db
-from app.services import x402
+from app.services import bootstrap, x402
 
 configure_logging(settings.log_level, settings.log_json)
 logger = logging.getLogger(__name__)
@@ -72,6 +73,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
             "'sandbox_' are accepted without touching the chain. Never enable "
             "this in production."
         )
+    # A host with no persistent disk starts empty on every restart. This fills
+    # the network in the background so the API is serving straight away.
+    await run_in_threadpool(bootstrap.seed_if_empty)
+
     try:
         yield
     finally:
@@ -155,11 +160,16 @@ app.include_router(api_router, prefix=settings.api_prefix)
 
 
 @app.get("/health", tags=["System"], summary="Liveness probe")
-async def health() -> dict[str, str]:
+async def health() -> dict[str, Any]:
+    """Deliberately shallow — the host polls this to decide whether to keep the
+    container. Dependency detail lives at `{api_prefix}/health`. Seeding state
+    is included because a freshly started instance is alive but not yet useful,
+    and that difference is worth being able to see from the outside."""
     return {
         "status": "ok",
         "service": "agentic-rag-paywall",
         "version": settings.app_version,
+        "bootstrap": bootstrap.status(),
     }
 
 

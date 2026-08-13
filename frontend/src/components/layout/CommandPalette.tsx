@@ -23,7 +23,7 @@ import {
 
 import { useTheme } from "@/components/providers/ThemeProvider";
 import { Kbd } from "@/components/ui/Badge";
-import { semanticSearch } from "@/lib/api";
+import { API_ORIGIN, semanticSearch } from "@/lib/api";
 import type { SearchMatch } from "@/lib/types";
 import { cn, truncate } from "@/lib/utils";
 
@@ -111,7 +111,7 @@ export function CommandPalette() {
         hint: "Interactive API docs",
         icon: <BookOpen size={15} />,
         group: "Navigate",
-        run: () => window.open("http://localhost:8000/docs", "_blank"),
+        run: () => window.open(`${API_ORIGIN}/docs`, "_blank"),
       },
       {
         id: "theme",

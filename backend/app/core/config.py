@@ -108,6 +108,14 @@ class Settings(BaseSettings):
     #: cannot enable it at all — see the validator below.
     x402_sandbox_mode: bool = False
 
+    # ── Boot-time seeding ────────────────────────────────────────────────────
+    #: For hosts with no persistent disk, where every restart begins with an
+    #: empty database. When enabled, an empty instance indexes the bundled
+    #: corpora and registers the seed providers in the background at startup.
+    #: It never touches an instance that already has providers, so leaving it
+    #: on with a real disk is harmless.
+    auto_seed: bool = False
+
     # ── Pricing display ──────────────────────────────────────────────────────
     xlm_usd_rate: float = Field(default=0.11, gt=0)
 

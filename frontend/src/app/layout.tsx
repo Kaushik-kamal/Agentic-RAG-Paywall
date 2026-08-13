@@ -6,6 +6,7 @@ import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { PageTransition } from "@/components/layout/PageTransition";
 import { CommandPalette } from "@/components/layout/CommandPalette";
+import { ConfigNotice } from "@/components/layout/ConfigNotice";
 import { DemoOverlay } from "@/components/demo/DemoOverlay";
 import { DemoProvider } from "@/components/demo/DemoProvider";
 import { SessionProvider } from "@/components/providers/SessionProvider";
@@ -100,6 +101,7 @@ export default function RootLayout({
           <ToastProvider>
             <SessionProvider>
               <DemoProvider>
+                <ConfigNotice />
                 <Navbar />
                 {/* `key` on the route makes every navigation settle in the same
                     way, so the product reads as one surface rather than a set

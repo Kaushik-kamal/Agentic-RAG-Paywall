@@ -1,0 +1,74 @@
+# Backend deployment blueprint for Render.
+#
+# Vercel cannot host this tier: SQLite and ChromaDB both need a filesystem, and
+# serverless functions do not have one at all. This runs the API as a container.
+#
+# Deploy: Render dashboard -> New -> Blueprint -> point at this repository.
+
+services:
+  - type: web
+    name: agentic-rag-paywall-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    region: oregon
+    healthCheckPath: /health
+    autoDeploy: false      # deploy deliberately, not on every push
+
+    # No `disk:` — persistent disks require a paid instance. The container
+    # filesystem is wiped on every restart, so AUTO_SEED below rebuilds the
+    # corpus and the provider registry on boot instead. The trade is real:
+    # accumulated ledger history and earned reputation do not survive a
+    # restart. Upgrading to `plan: starter` and restoring the disk block is
+    # the fix — AUTO_SEED then becomes a harmless no-op.
+
+    envVars:
+      # ── Set these in the Render dashboard, never in this file ────────────
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_API_KEY
+        generateValue: true
+      - key: STELLAR_PUBLIC_KEY
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false        # your Vercel URL, e.g. https://your-app.vercel.app
+
+      # ── Rebuild the network on boot, since there is no disk ──────────────
+      # Skipped entirely when providers already exist, so it costs nothing on
+      # a restart that did keep its data.
+      - key: AUTO_SEED
+        value: "true"
+
+      # ── Deliberate: this is a public *demo*, not production ─────────────
+      # ENVIRONMENT=production would force sandbox settlement off, and a
+      # visitor with no Stellar wallet could then never obtain credits. The
+      # admin surface stays locked either way because ADMIN_API_KEY is set.
+      - key: ENVIRONMENT
+        value: staging
+      - key: X402_SANDBOX_MODE
+        value: "true"
+
+      # ── Abuse budget. A public sandbox mints credits on request, and every
+      # credit spends your Gemini quota. Keep these tight. ────────────────
+      - key: RATE_LIMIT_ENABLED
+        value: "true"
+      - key: RATE_LIMIT_REQUESTS
+        value: "60"
+      - key: RATE_LIMIT_WINDOW_SECONDS
+        value: "60"
+      - key: X402_FREE_CREDITS
+        value: "3"
+      - key: X402_CREDITS_PER_PAYMENT
+        value: "5"
+
+      - key: LOG_JSON
+        value: "true"
+      - key: DATABASE_URL
+        value: /app/data/paywall.db
+      - key: CHROMA_PERSIST_DIR
+        value: /app/data/chroma
+      - key: UPLOAD_DIR
+        value: /app/data/uploads
