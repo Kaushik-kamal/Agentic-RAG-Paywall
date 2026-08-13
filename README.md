@@ -476,13 +476,34 @@ set it to the URL a *browser* can reach.
 
 ### Split deployment (Vercel + a container host)
 
+Vercel cannot host the API: SQLite and Chroma both need a filesystem, and
+serverless functions do not have one.
+
 1. **Frontend → Vercel.** Root directory `frontend`. Set `NEXT_PUBLIC_API_URL`
    to the public API URL, plus `API_INTERNAL_URL` and `ADMIN_API_KEY` as
-   server-side variables.
-2. **Backend → Fly.io / Render / Railway.** Deploy `backend/Dockerfile`, mount a
-   volume at `/app/data`, and set `CORS_ORIGINS` to your Vercel domain.
-3. Set `ENVIRONMENT=production` — this refuses sandbox payments, requires a
-   treasury account and an admin key, and disables debug output.
+   server-side variables. `NEXT_PUBLIC_API_URL` is inlined at build time, so
+   redeploy after changing it — a restart will not pick it up.
+2. **Backend → Fly.io / Render / Railway.** `render.yaml` is a ready blueprint
+   for `backend/Dockerfile`. Mount a volume at `/app/data`, and set
+   `CORS_ORIGINS` to your Vercel domain.
+3. On a host with **no** persistent volume, set `AUTO_SEED=true`. An instance
+   that boots with an empty registry indexes the bundled corpora and registers
+   the eleven seed providers on a background thread, so the health check passes
+   immediately while the network fills in behind it. It is skipped when
+   providers already exist, so it is a no-op wherever a volume is attached.
+
+Then prove it actually works, rather than trusting a green build:
+
+```bash
+python scripts/verify_deployment.py --frontend <vercel-url> --backend <api-url>
+```
+
+It drives every page, then the whole money path — challenge, settlement, paid
+query, cache hit, ledger reconciliation — and fails if the shipped bundle
+contains a localhost URL or anything shaped like a key.
+
+`docs/DEPLOYMENT.md` has the full walkthrough, including why the public demo
+runs as `ENVIRONMENT=staging` rather than `production`.
 
 ### Production checklist
 
@@ -499,7 +520,7 @@ set it to the URL a *browser* can reach.
 
 ```bash
 cd backend
-pytest                  # 94 tests, no network or API keys required
+pytest                  # 128 tests, no network or API keys required
 ruff check app scripts tests
 ```
 
