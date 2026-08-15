@@ -59,8 +59,14 @@ services:
         value: "60"
       - key: RATE_LIMIT_WINDOW_SECONDS
         value: "60"
+      # Must cover the dearest provider, or the demo walls off on first use.
+      # PriorArt charges 4 credits per call, so a 3-credit allowance meant a
+      # visitor asking a patents question could never complete a single query —
+      # they hit the paywall before seeing an answer. 10 buys a few calls at any
+      # price on the network, including the dearest, and still leaves the
+      # paywall doing its job once spent.
       - key: X402_FREE_CREDITS
-        value: "3"
+        value: "10"
       - key: X402_CREDITS_PER_PAYMENT
         value: "5"
 
