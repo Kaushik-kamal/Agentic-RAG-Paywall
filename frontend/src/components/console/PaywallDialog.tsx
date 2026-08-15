@@ -14,6 +14,7 @@ import {
   ExternalLink,
   Landmark,
   Loader2,
+  ShieldCheck,
   Sparkles,
   Wallet,
   X,
@@ -34,6 +35,19 @@ const STAGES: { id: PurchaseStage; label: string }[] = [
   { id: "submitting", label: "Submitting to Stellar" },
   { id: "verifying", label: "Verifying on-chain" },
   { id: "settled", label: "Credits issued" },
+];
+
+/** The sandbox walks the same five stages, but three of them do something
+ *  different: no key signs anything, nothing is submitted, and no ledger is
+ *  read. Reusing the on-chain wording there would tell a visitor their wallet
+ *  had just been charged, which is the one thing this dialog must never
+ *  imply. */
+const SANDBOX_STAGES: { id: PurchaseStage; label: string }[] = [
+  { id: "challenge", label: "Requesting x402 challenge" },
+  { id: "signing", label: "Issuing a sandbox reference — nothing is signed" },
+  { id: "submitting", label: "No transaction sent — the chain is not touched" },
+  { id: "verifying", label: "Recording the sandbox settlement" },
+  { id: "settled", label: "Demo credits issued" },
 ];
 
 export function PaywallDialog({
@@ -92,7 +106,9 @@ export function PaywallDialog({
   if (!open) return null;
 
   const price = config?.pricing;
-  const stageIndex = stage ? STAGES.findIndex((s) => s.id === stage) : -1;
+  const sandboxStages = tab === "instant";
+  const stageList = sandboxStages ? SANDBOX_STAGES : STAGES;
+  const stageIndex = stage ? stageList.findIndex((s) => s.id === stage) : -1;
 
   return (
     <div
@@ -172,15 +188,29 @@ export function PaywallDialog({
         <div className="p-6">
           {tab === "instant" ? (
             <>
-              <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
-                Sandbox settlement issues credits without touching the chain, so the
-                product is explorable in one click. It is enabled by configuration
-                and is <strong>refused in production builds</strong>.
+              <div className="flex items-start gap-2.5 rounded-[var(--radius)] border border-[color:var(--positive)]/30 bg-[var(--positive-soft)] px-3.5 py-3">
+                <ShieldCheck
+                  size={15}
+                  className="mt-0.5 shrink-0 text-[var(--positive)]"
+                />
+                <p className="text-sm leading-relaxed text-[var(--text)]">
+                  <strong className="font-semibold">No real XLM is spent.</strong>{" "}
+                  These are sandbox credits — no wallet is used, no key signs
+                  anything, and nothing reaches the Stellar ledger.{" "}
+                  <strong className="font-semibold">Pay on-chain</strong> is the only
+                  tab that moves real funds.
+                </p>
+              </div>
+
+              <p className="mt-3 text-sm leading-relaxed text-[var(--text-secondary)]">
+                Credits are issued instantly so the product is explorable in one
+                click. Sandbox settlement is enabled by configuration and is{" "}
+                <strong>refused in production builds</strong>.
               </p>
 
               {stageIndex >= 0 ? (
                 <ol className="mt-5 space-y-2">
-                  {STAGES.map((item, index) => {
+                  {stageList.map((item, index) => {
                     const done = index < stageIndex;
                     const active = index === stageIndex;
                     return (
@@ -218,12 +248,24 @@ export function PaywallDialog({
                 iconRight={busy ? undefined : <ArrowRight size={15} />}
               >
                 {busy
-                  ? "Settling…"
-                  : `Settle ${price?.price_xlm ?? "0.01"} XLM · get ${price?.credits_per_payment ?? 10} credits`}
+                  ? "Issuing sandbox credits…"
+                  : `Get ${price?.credits_per_payment ?? 10} sandbox credits · no XLM spent`}
               </Button>
             </>
           ) : (
             <div className="space-y-4">
+              <div className="flex items-start gap-2.5 rounded-[var(--radius)] border border-[color:var(--value)]/30 bg-[var(--value-soft)] px-3.5 py-3">
+                <Wallet size={15} className="mt-0.5 shrink-0 text-[var(--value)]" />
+                <p className="text-sm leading-relaxed text-[var(--text)]">
+                  <strong className="font-semibold">
+                    This path moves real funds.
+                  </strong>{" "}
+                  It needs a funded {challenge?.network ?? "testnet"} wallet and
+                  settles on the public ledger. For a demo, use{" "}
+                  <strong className="font-semibold">Instant demo</strong> instead.
+                </p>
+              </div>
+
               <p className="text-sm leading-relaxed text-[var(--text-secondary)]">
                 Send the exact amount with the memo below, then verify the hash. The
                 memo is what binds your payment to this challenge.
