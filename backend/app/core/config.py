@@ -129,6 +129,28 @@ class Settings(BaseSettings):
             return secrets.token_urlsafe(48)
         return value.strip()
 
+    @field_validator(
+        "gemini_api_key",
+        "admin_api_key",
+        "stellar_public_key",
+        "stellar_secret_key",
+    )
+    @classmethod
+    def _strip_credential(cls, value: str) -> str:
+        """Credentials arrive by copy-paste, and paste carries whitespace.
+
+        A hosting dashboard field, or a line copied out of a CRLF ``.env``,
+        picks up a trailing newline without showing one. gRPC will not put
+        that in the ``x-goog-api-key`` header: it fails the call with
+        ``INTERNAL:Illegal header value`` and retries until the 60s timeout,
+        so every embedding dies while the key still looks configured.
+
+        The boot guard could not catch it either, because ``gemini_enabled``
+        strips before testing for truth but the stored value stays raw — the
+        check and the use disagreed. Strip once, here, so they cannot.
+        """
+        return value.strip()
+
     @field_validator("log_level")
     @classmethod
     def _upper_log_level(cls, value: str) -> str:
