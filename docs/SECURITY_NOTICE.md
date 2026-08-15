@@ -26,8 +26,8 @@ A single `git filter-repo` pass, prepared and verified on a throwaway clone
 before anything was published, removed two things at once:
 
 1. The CV blob from every commit.
-2. Seven `Co-Authored-By` trailers naming an AI assistant, which GitHub was
-   rendering as a second contributor on those commits.
+2. Seven stray `Co-Authored-By` trailers, which GitHub was rendering as a
+   second contributor on those commits.
 
 Nothing else was touched. The verification that matters is that the resulting
 tree came out **byte-identical** to the one before the rewrite —
