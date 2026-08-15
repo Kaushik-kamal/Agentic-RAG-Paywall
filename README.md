@@ -16,6 +16,11 @@ cited answer — in about three seconds.
 ![Stellar testnet](https://img.shields.io/badge/Stellar-testnet-0f6bff?logo=stellar&logoColor=white)
 ![License MIT](https://img.shields.io/badge/license-MIT-green)
 
+**[Live demo](https://agentic-rag-paywall.vercel.app)** · **[API docs](https://agentic-rag-paywall-api.onrender.com/docs)**
+
+<sub>The API runs on a free instance that sleeps after 15 minutes idle. The first
+request wakes it and can take up to a minute.</sub>
+
 </div>
 
 ---
